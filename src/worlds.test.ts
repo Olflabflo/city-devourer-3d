@@ -57,3 +57,24 @@ test('river maps have a continuous water channel distinct from the banks', () =>
     assert.ok(new Set(channel.map(p => p.yaw)).size > 2, `${id} channel bends along the terrain`);
   }
 });
+
+test('each map has nearby collectibles and active traffic that resets with the round', () => {
+  for (const world of landscapes) {
+    const city = new City(false, world);
+    try {
+      assert.ok(city.objects.length >= 180, `${world.name}: collectible density`);
+      const nearSpawn = city.objects.filter(item => Math.hypot(item.x, item.z - 11.25) <= 24);
+      assert.ok(nearSpawn.length >= 25, `${world.name}: enough to find near the start`);
+      const moving = city.traffic.filter(item => Math.hypot(item.x, item.z - 11.25) <= 30);
+      assert.ok(moving.length >= 4, `${world.name}: movement visible near the start`);
+      const origin = moving.map(({ x,z }) => [x,z]);
+      city.drive(.5, new Set([moving[0]]));
+      assert.deepEqual([moving[0].x, moving[0].z], origin[0]);
+      assert.notDeepEqual(moving.slice(1).map(({x,z}) => [x,z]), origin.slice(1));
+      city.reset();
+      assert.deepEqual(moving.map(({x,z}) => [x,z]), origin);
+    } finally {
+      city.dispose();
+    }
+  }
+});

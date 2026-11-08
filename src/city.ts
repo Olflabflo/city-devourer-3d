@@ -1,7 +1,7 @@
 import * as T from 'three';
 import { Grid } from './rules.ts';
 import { harbor, type Landscape } from './landscapes.ts';
-import { planWorld } from './world-layout.ts';
+import { planWorld, type Patrol } from './world-layout.ts';
 import type { Piece } from './world-models.ts';
 
 export const block = 30;
@@ -25,7 +25,7 @@ type Part = {
 type Traffic = { axis: 'x' | 'z'; center: number; span: number; speed: number };
 export type Prop = {
   x: number; z: number; y: number; angle: number; parts: Part[];
-  tier: number; footprint: number; points: number; traffic?: Traffic;
+  tier: number; footprint: number; points: number; traffic?: Traffic; patrol?: Patrol;
 };
 const pivot = new T.Object3D();
 const scratch = new T.Matrix4();
@@ -154,7 +154,8 @@ export class City {
   private readonly material = new T.MeshLambertMaterial();
   private readonly ground: T.Mesh<T.PlaneGeometry, T.MeshLambertMaterial>;
 
-  private readonly start = new Map<Prop, [number, number]>();
+  private readonly start = new Map<Prop, [number, number, number]>();
+  private travel = 0;
 
   constructor(shadows: boolean, landscape: Landscape = harbor) {
     const ground = this.ground = new T.Mesh(new T.PlaneGeometry(270, 270), new T.MeshLambertMaterial({
@@ -179,14 +180,14 @@ export class City {
       for (let iz = -3; iz <= 3; iz++) {
         const cx = ix * block, cz = iz * block;
         const lot: Prop[] = [];
-        const add = (x: number, z: number, tier: number, footprint: number, points: number, parts: Part[], angle = 0, traffic?: Traffic) => {
-          const prop = { x: cx + x, z: cz + z, y: tier ? .035 : 0, tier, footprint, points, parts, angle, traffic };
+        const add = (x: number, z: number, tier: number, footprint: number, points: number, parts: Part[], angle = 0, traffic?: Traffic, patrol?: Patrol) => {
+          const prop = { x: cx + x, z: cz + z, y: tier ? .035 : 0, tier, footprint, points, parts, angle, traffic, patrol };
           lot.push(prop);
           if (tier) {
             this.objects.push(prop);
-            this.start.set(prop, [prop.x, prop.z]);
+            this.start.set(prop, [prop.x, prop.z, prop.angle]);
           }
-          if (traffic) this.traffic.push(prop);
+          if (traffic || patrol) this.traffic.push(prop);
         };
         const park = (ix + iz * 2) % 4 === 0;
         const paving = [part(cement, 0, .08, 0, 21.2, .16, 21.2)];
@@ -234,7 +235,13 @@ export class City {
             part(0xffeed0, 0, 1.39, .066, .28, .066, .025),
           ]);
           add(side * 7.5, 9.3, 1, .37, 6, [part(0x446c69, 0, .33, 0, .52, .66, .52, 'pole'), part(dark, 0, .68, 0, .56, .12, .56, 'pole')]);
-          add(side * 9, 2.1, 2, .34, 13, person(color()), random() * 6);
+          const x = side * 9;
+          add(x, 2.1, 2, .34, 13, person(color()), random() * 6, undefined,
+            {x:cx + x,z:cz - .7,rx:.45,rz:2.8,speed:.73,phase:0,stride:true});
+          if (ix === 0 && iz === 0) {
+            add(side * 4, 7.3, 2, .34, 13, person(side < 0 ? 0xe9b95e : 0x60a8ab), 0, undefined,
+              {x:side * 4,z:5,rx:2,rz:2.3,speed:.81,phase:0,stride:true});
+          }
         }
         add(-4.7, 9.25, 2, .95, 16, [part(0x40877e, 0, .56, 0, 1.58, .93, .87), part(dark, 0, 1.05, 0, 1.68, .16, .95)]);
         for (let i = 0; i < 7; i++) {
@@ -262,14 +269,15 @@ export class City {
     this.batch([{ x:0, z:0, y:0, angle:0, tier:0, footprint:0, points:0, parts:scenery.map(toPart) }], false);
     const chunks = new Map<string, Prop[]>();
     for (const object of objects) {
-      const { x, z, tier, points, radius, yaw, pieces } = object;
-      const prop = { x, z, tier, points, footprint:radius, angle:yaw, y:.083, parts:sizedParts(pieces, radius) };
+      const { x, z, tier, points, radius, yaw, pieces, patrol } = object;
+      const prop = { x, z, tier, points, footprint:radius, angle:yaw, y:.083, parts:sizedParts(pieces, radius), patrol };
       const key = `${Math.floor(x / 36)},${Math.floor(z / 36)}`;
       const chunk = chunks.get(key) ?? [];
       chunk.push(prop);
       chunks.set(key, chunk);
       this.objects.push(prop);
-      this.start.set(prop, [x,z]);
+      if (patrol) this.traffic.push(prop);
+      this.start.set(prop, [x,z,yaw]);
     }
     for (const chunk of chunks.values()) this.batch(chunk, shadows);
   }
@@ -302,9 +310,10 @@ export class City {
   }
 
   reset() {
+    this.travel = 0;
     for (const prop of this.objects) {
       this.grid.remove(prop);
-      [prop.x, prop.z] = this.start.get(prop)!;
+      [prop.x, prop.z, prop.angle] = this.start.get(prop)!;
       this.grid.add(prop);
       pose(prop);
     }
@@ -321,8 +330,19 @@ export class City {
     this.ground.material.dispose();
   }
   drive(dt: number, unavailable: ReadonlySet<Prop>) {
+    this.travel += dt;
     for (const car of this.traffic) {
       if (unavailable.has(car)) continue;
+      if (car.patrol) {
+        const route = car.patrol;
+        const t = route.phase + this.travel * route.speed;
+        const sin = Math.sin(t), cos = Math.cos(t);
+        this.grid.move(car, route.x + route.rx * sin, route.z + route.rz * cos);
+        car.angle = Math.atan2(route.rz * sin, route.rx * cos);
+        const step = route.stride ? Math.sin(this.travel * 13 + route.phase) : 0;
+        pose(car, car.x, car.y + Math.abs(step) * .05, car.z, 0, step * .13);
+        continue;
+      }
       const route = car.traffic!;
       const travel = route.span * 2;
       const position = ((car[route.axis] - route.center + route.span + route.speed * dt + travel) % travel) + route.center - route.span;

@@ -39,12 +39,26 @@ const layouts: Record<Exclude<Landscape['layout'], 'grid'>, Layout> = {
 };
 
 export const spawn = [0, 11.25] as const;
-type ObjectPlan = { x: number; z: number; tier: number; radius: number; points: number; yaw: number; pieces: Piece[] };
+export type Patrol = { x: number; z: number; rx: number; rz: number; speed: number; phase: number; stride?: boolean };
+type ObjectPlan = { x: number; z: number; tier: number; radius: number; points: number; yaw: number; pieces: Piece[]; patrol?: Patrol };
 type WorldPlan = { scenery: Piece[]; objects: ObjectPlan[] };
 const radii = [.34, .83, 1.62, 2.92, 4.58, 7.25];
 const points = [6, 14, 28, 52, 90, 220];
 const accentWhite = 0xf3ebd7;
 const riverBlue = 0x3b8398;
+const movingModels: Record<Landscape['group'], readonly [string, string]> = {
+  Erde: ['walker', 'rover'],
+  Wasser: ['sail', 'cargo'],
+  Geschichte: ['walker', 'cart'],
+  Miniatur: ['ant', 'beetle'],
+  'Science-Fiction': ['rover', 'drone'],
+};
+const localTraffic: Partial<Record<Landscape['id'], readonly [string, string]>> = {
+  amazon: ['walker', 'longboat'], egypt: ['walker', 'sail'], arctic: ['walker', 'rover'],
+  pirate: ['longboat', 'galleon'], reef: ['fish', 'fish'], venice: ['walker', 'longboat'],
+  icebreaker: ['cargo', 'breaker'], viking: ['walker', 'longboat'], toys: ['toy', 'train'],
+  picnic: ['ant', 'beetle'], desk: ['ant', 'beetle'], bench: ['beetle', 'toy'],
+};
 
 function strip(color: number, from: Point, to: Point, width: number, y: number) {
   const dx = to[0] - from[0], dz = to[1] - from[1];
@@ -127,16 +141,31 @@ export function planWorld(world: Landscape): WorldPlan {
   }
 
   const objects: ObjectPlan[] = [];
-  const add = (x: number, z: number, tier: number, yaw = 0) => {
+  const add = (x: number, z: number, tier: number, yaw = 0, name = world.models[tier - 1], patrol?: Patrol) => {
     const radius = radii[tier - 1];
     if (Math.abs(x) > 99 || Math.abs(z) > 99 || objects.some(other =>
       Math.hypot(x - other.x, z - other.z) < radius + other.radius + .7)) return false;
-    objects.push({ x, z, tier, radius, yaw, points:points[tier - 1],
-      pieces:model(world.models[tier - 1], world.accent, world.detail) });
+    objects.push({ x, z, tier, radius, yaw, points:points[tier - 1], patrol,
+      pieces:model(name, world.accent, world.detail) });
     return true;
   };
   add(-8, -17, 6, .24);
   for (let i = 1; i <= 8; i++) add(spawn[0] - i * 1.55, spawn[1] + i * .815, 1, i * .38);
+  const actors = localTraffic[world.id] ?? movingModels[world.group];
+  const addPatrol = (x: number, z: number, i: number) => {
+    const name = actors[i % 2];
+    const stride = ['walker','ant','beetle','toy'].includes(name);
+    const phase = (i % 4) * Math.PI / 2;
+    const route = { x, z, phase, stride, rx:stride ? 3.1 : 6.2, rz:stride ? 1.6 : 3.3, speed:stride ? .65 : .83 };
+    const angle = Math.atan2(route.rz * Math.sin(phase), route.rx * Math.cos(phase));
+    return add(x + route.rx * Math.sin(phase), z + route.rz * Math.cos(phase), stride ? 2 : 3, angle, name, route);
+  };
+  for (const [i, [x,z]] of ([[4,4],[12,8],[17,17],[4,23],[-5,27],[-16,5],[18,-3],[-19,14]] as Point[]).entries()) addPatrol(x,z,i);
+  for (let i = 0; i < 28; i++) {
+    const angle = i * 2.39996;
+    const radius = 6 + (i % 7) * 2.5;
+    add(2 + Math.cos(angle) * radius, 11 + Math.sin(angle) * radius, i % 4 === 0 ? 2 : 1, angle);
+  }
   for (const trail of trails) {
     for (let i = 0; i < 21; i++) {
       const {x,z,dx,dz} = sample(trail, (i + .45) / 21);
@@ -145,10 +174,19 @@ export function planWorld(world: Landscape): WorldPlan {
       const offset = side * (layout.width / 2 + 2.1 + random() * 3.4);
       add(x + dz * offset, z - dx * offset, tier, Math.atan2(-dz, dx));
       if (i % 3 === 0) add(x - dz * offset, z + dx * offset, 1, random() * 6.28);
+      if (i % 3 === 1) addPatrol(x - dz * 3, z + dx * 3, i);
+      for (let j = 0; j < 2; j++) {
+        const gap = layout.width * .5 + 4 + j * 3;
+        const side = j === 0 ? 1 : -1;
+        const ox = x + dz * gap * side + dx * (3 + j);
+        const oz = z - dx * gap * side + dz * (3 + j);
+        add(ox, oz, i % 4 === 0 ? 2 : 1, i * .65);
+        if (i % 2 === 0) scenery.push(piece(world.detail, ox, .026, oz, 3.9, .024, 2.8, 'pole', i * .65));
+      }
     }
   }
   // Enforce a supply of each tier even if the trails cross or run close to the boundary.
-  const minimum = [23, 16, 14, 10, 8, 3];
+  const minimum = [104, 37, 21, 12, 9, 4];
   for (let tier = 6; tier >= 1; tier--) {
     let count = objects.filter(object => object.tier === tier).length;
     for (let attempt = 0; count < minimum[tier - 1] && attempt < 400; attempt++) {

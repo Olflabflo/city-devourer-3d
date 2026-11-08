@@ -29,6 +29,26 @@ export function model(name: string, a: number, b: number): Piece[] {
     return p(ivory, Math.cos(t) * radius, height / 2, Math.sin(t) * radius, .12, height, .12, 'pole');
   });
   switch (name) {
+    case 'fish': return [
+      p(a, .07, .36, 0, 1.15, .35, .53, 'sphere'),
+      p(b, -.59, .37, 0, .41, .31, .12, 'pyramid', 0, 0, Math.PI / 2),
+      p(ivory, .43, .46, .14, .13, .13, .13, 'sphere'),
+      p(metal, .47, .47, .19, .062, .062, .062, 'sphere'),
+    ];
+    case 'cart': return [
+      p(bark, 0, .55, 0, 1.38, .43, .83),
+      ...[-.49,.49].flatMap(x => [-.43,.43].map(z => p(metal, x, .3, z, .49, .49, .16, 'wheel'))),
+      p(b, -.18, .84, 0, .58, .42, .67), p(a, .29, .8, .04, .33, .31, .45),
+      p(bark, .91, .44, 0, .55, .08, .09),
+    ];
+    case 'walker': return [
+      p(metal, .03, .23, -.12, .18, .46, .15, 'box', 0, 0, .23),
+      p(metal, -.05, .23, .12, .18, .46, .15, 'box', 0, 0, -.23),
+      p(a, 0, .58, 0, .29, .43, .43),
+      p(0xe0af83, .02, .94, 0, .32, .34, .32, 'sphere'),
+      p(b, .02, 1.07, 0, .34, .13, .36, 'pole'),
+      ...[-1, 1].map(side => p(a, .02, .57, side * .26, .13, .35, .12, 'box', 0, 0, side * .35)),
+    ];
     case 'stone': return [form('crown', 1.05, .74, .81, b), p(a, .26, .31, .16, .28, .22, .26, 'crown')];
     case 'seed': return [p(a, 0, .26, 0, .48, .3, .85, 'sphere'), p(ivory, 0, .42, 0, .045, .04, .58)];
     case 'crate': return [form('box', 1.3, .83, .92), p(bark, 0, .45, 0, 1.34, .13, .97), p(ivory, 0, .86, 0, .62, .06, .62)];
