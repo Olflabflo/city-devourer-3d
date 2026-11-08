@@ -33,6 +33,61 @@ export function model(name: string, a: number, b: number): Piece[] {
     return p(ivory, Math.cos(t) * radius, height / 2, Math.sin(t) * radius, .12, height, .12, 'pole');
   });
   switch (name) {
+    case 'hydrant': return [form('pole', .48, .58, .48, a), p(a, 0, .61, 0, .55, .2, .55, 'sphere'),
+      ...[-1,1].map(side => p(ivory, 0, .39, side * .26, .2, .13, .2, 'wheel'))];
+    case 'bike': return [
+      ...[-.5,.5].flatMap(x => [p(metal, x, .29, 0, .55, .55, .085, 'wheel'),
+        p(ivory, x, .29, 0, .42, .42, .092, 'wheel')]),
+      p(a, 0, .36, 0, 1.01, .078, .078, 'box', 0, 0, .15),
+      p(a, -.06, .51, 0, .63, .077, .077, 'box', 0, 0, -.49),
+      p(metal, -.26, .67, 0, .23, .067, .17), p(metal, .45, .66, 0, .077, .39, .077, 'box', 0, 0, .2),
+      p(metal, .46, .84, 0, .075, .065, .34),
+    ];
+    case 'stop': return [
+      p(metal, -.51, .62, -.25, .08, 1.24, .08), p(metal, .51, .62, -.25, .08, 1.24, .08),
+      p(glass, 0, .74, -.25, 1.01, .77, .065), p(a, 0, 1.24, -.03, 1.23, .12, .69),
+      p(b, 0, .34, -.04, .89, .13, .35),
+    ];
+    case 'bollard': return [form('pole', .48, .14, .48, metal), p(metal, 0, .39, 0, .26, .65, .26, 'pole'),
+      p(a, 0, .72, 0, .34, .13, .34, 'pole')];
+    case 'rope': return [.08,.16,.24].map((y,i) => p(0xb9996d, 0, y, 0, .78 - i * .13, .11, .78 - i * .13, 'ring'));
+    case 'lily': return [p(foliage, 0, .1, 0, .78, .09, .65, 'pole'), p(a, -.05, .17, .02, .2, .14, .19, 'crown')];
+    case 'urn': return [form('sphere', .67, .74, .67, 0xbe7952), p(b, 0, .73, 0, .32, .12, .32, 'ring'),
+      ...[-1,1].map(side => p(0xbe7952, 0, .52, side * .31, .27, .08, .23, 'ring', 0, 0, Math.PI / 2))];
+    case 'sack': return [form('sphere', .75, .7, .61, 0xbda47a), p(bark, 0, .71, 0, .25, .13, .21, 'sphere')];
+    case 'planter': return [form('pole', .76, .43, .76, 0xb9795e), p(foliage, 0, .51, 0, .73, .38, .69, 'crown'),
+      p(a, .17, .74, .05, .24, .17, .21, 'sphere')];
+    case 'awning': return [
+      form('box', 1.34, .69, 1.04, b), p(ivory, 0, .85, 0, 1.43, .38, 1.12, 'hull', Math.PI / 2),
+      p(glass, -.28, .42, .53, .35, .31, .055),
+      ...[-1,0,1].map(i => p(i ? a : ivory, i * .36, .68, .64, .35, .12, .39, 'box', 0, .18)),
+    ];
+    case 'battery': return [form('box', .86, .52, .63, metal), p(a, 0, .32, .32, .58, .2, .035),
+      ...[-1,1].map(side => p(ivory, side * .22, .57, 0, .18, .13, .18, 'pole'))];
+    case 'supply': return [form('box', 1.42, .81, .87, b), ...[-1,1].map(side => p(a, side * .44, .41, 0, .13, .85, .92)),
+      p(ivory, 0, .52, .45, .26, .19, .025)];
+    case 'signal': return [form('box', .38, .14, .38, metal), p(metal, 0, .44, 0, .09, .78, .09, 'pole'),
+      p(a, 0, .89, 0, .31, .18, .31, 'gem')];
+    case 'handcart': case 'carriage': {
+      const carriage = name === 'carriage';
+      return [
+        p(bark, -.29, .5, 0, .91, .21, .73), p(b, -.29, .65, 0, .85, .23, .59),
+        ...[-1,1].flatMap(side => [
+          p(metal, -.35, .28, side * .4, .53, .53, .1, 'wheel'),
+          p(bark, .34, .52, side * .24, 1.17, .055, .06),
+        ]),
+        ...(carriage ? [
+          p(0xa77c54, .71, .59, 0, .73, .35, .31, 'sphere'),
+          p(0xa77c54, .97, .84, 0, .3, .43, .24, 'sphere', 0, 0, -.37),
+          p(0xb88f68, 1.12, .91, 0, .29, .22, .22, 'sphere'),
+          ...[-1,1].flatMap(side => [-1,1].map(front => animated(
+            p(0x795840, .73 + front * .24, .29, side * .1, .092, .54, .1), 'swing', side * front))),
+        ] : [
+          p(b, .7, .72, 0, .28, .34, .34, 'sphere'), p(0xe0ae86, .76, .99, 0, .24, .27, .25, 'sphere'),
+          ...[-1,1].map(side => animated(p(metal, .74, .31, side * .1, .12, .52, .12), 'swing', side)),
+        ]),
+      ];
+    }
     case 'fish': return [
       p(a, .07, .36, 0, 1.15, .35, .53, 'sphere'),
       p(b, -.59, .37, 0, .41, .31, .12, 'pyramid', 0, 0, Math.PI / 2),
@@ -331,3 +386,4 @@ export function model(name: string, a: number, b: number): Piece[] {
     default: throw new Error(`Unknown landscape model: ${name}`);
   }
 }
+

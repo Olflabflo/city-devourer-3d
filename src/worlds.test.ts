@@ -1,10 +1,10 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { City, extent } from './city.ts';
+import { City, extent, pose } from './city.ts';
 import { harbor, landscapes } from './landscapes.ts';
 import { fits, radii, thresholds } from './rules.ts';
-import { InstancedMesh, Scene } from 'three';
-import { planWorld, spawn } from './world-layout.ts';
+import { InstancedMesh, Matrix4, Scene } from 'three';
+import { landActors, planWorld, spawn, waterActors } from './world-layout.ts';
 import { landscapeById } from './landscapes.ts';
 
 test('the landscapes generate distinct layouts with attainable growth chains', () => {
@@ -62,7 +62,7 @@ test('each map has nearby collectibles and active traffic that resets with the r
   for (const world of landscapes) {
     const city = new City(false, world);
     try {
-      assert.ok(city.objects.length >= 300, `${world.name}: collectible density`);
+      assert.ok(city.objects.length >= 1880, `${world.name}: collectible density`);
       const nearSpawn = city.objects.filter(item => Math.hypot(item.x, item.z - spawn[1]) <= 24);
       assert.ok(nearSpawn.length >= 25, `${world.name}: enough to find near the start`);
       const moving = city.traffic.filter(item => Math.hypot(item.x, item.z - spawn[1]) <= 30);
@@ -78,5 +78,52 @@ test('each map has nearby collectibles and active traffic that resets with the r
     }
   }
 });
+
+test('historical traffic fits its period and routes stay on the correct surface', () => {
+  for (const world of landscapes.filter(map => map !== harbor)) {
+    const plan = planWorld(world);
+    const movers = plan.objects.filter(prop => prop.patrol);
+    const names = new Set(plan.objects.map(prop => prop.name));
+    assert.ok(names.size >= 7, `${world.name}: model variety`);
+    assert.ok(plan.objects.some(prop => prop.tier === 6 && prop.name === world.models[5]), `${world.name}: landmark`);
+    if (world.group === 'Geschichte') {
+      assert.ok(movers.some(prop => prop.name === 'handcart' || prop.name === 'carriage'), `${world.name}: period ground traffic`);
+    }
+    for (const prop of movers) {
+      if (world.group === 'Geschichte') {
+        assert.ok(['walker','woman','roman','roman-woman','handcart','carriage','sail','longboat'].includes(prop.name));
+      }
+      if (!landActors.has(prop.name) && !waterActors.has(prop.name)) continue;
+      const {x,z,rx,rz} = prop.patrol!;
+      for (let step = 0; step < 96; step++) {
+        const angle = step * Math.PI / 48;
+        assert.equal(plan.isLand(x + rx * Math.sin(angle), z + rz * Math.cos(angle)),
+          landActors.has(prop.name), `${world.name}: ${prop.name} crosses an incompatible surface`);
+      }
+    }
+  }
+});
+
+test('a collapsing building lowers its upper parts and a restart restores them', () => {
+  const city = new City(false, landscapeById('castle'));
+  try {
+    const building = city.objects.find(prop => prop.building && prop.tier === 6)!;
+    assert.ok(building);
+    const roof = building.parts.reduce((top, part) => part.local.elements[13] > top.local.elements[13] ? part : top);
+    const height = () => {
+      const matrix = new Matrix4();
+      roof.mesh!.getMatrixAt(roof.slot!, matrix);
+      return matrix.elements[13];
+    };
+    const intact = height();
+    pose(building, building.x, building.y, building.z, 0, 0, 1, undefined, .8);
+    assert.ok(height() < intact * .5);
+    city.reset();
+    assert.equal(height(), intact);
+  } finally {
+    city.dispose();
+  }
+});
+
 
 

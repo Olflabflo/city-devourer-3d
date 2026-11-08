@@ -33,11 +33,15 @@ type Part = {
 type Traffic = { axis: 'x' | 'z'; center: number; span: number; speed: number };
 export type Prop = {
   x: number; z: number; y: number; angle: number; parts: Part[];
-  tier: number; footprint: number; points: number; traffic?: Traffic; patrol?: Patrol;
+  tier: number; footprint: number; points: number; traffic?: Traffic; patrol?: Patrol; building?: boolean;
 };
 const pivot = new T.Object3D();
 const scratch = new T.Matrix4();
 const animatedPart = new T.Matrix4();
+const crushedPart = new T.Matrix4();
+const compression = new T.Matrix4();
+const structures = new Set(['awning','tower','keep','cabin','longhouse','stilt','palazzo','temple','arena',
+  'arch','pyramid','station','module','neon','dome','airlock','caravan','crane']);
 const asphalt = 0x455667;
 const cement = 0xc8b6a0;
 const grass = 0x76a76d;
@@ -83,11 +87,12 @@ function sizedParts(pieces: Piece[], footprint: number) {
   return parts;
 }
 
-export function pose(prop: Prop, x = prop.x, y = prop.y, z = prop.z, pitch = 0, roll = 0, scale = 1, time?: number) {
+export function pose(prop: Prop, x = prop.x, y = prop.y, z = prop.z, pitch = 0, roll = 0, scale = 1, time?: number, collapse = 0) {
   pivot.position.set(x, y, z);
   pivot.rotation.set(pitch, prop.angle, roll);
   pivot.scale.setScalar(scale);
   pivot.updateMatrix();
+  if (collapse) compression.makeScale(1, 1 - .84 * collapse, 1);
   for (const p of prop.parts) {
     const mesh = p.mesh!;
     let local = p.local;
@@ -99,6 +104,14 @@ export function pose(prop: Prop, x = prop.x, y = prop.y, z = prop.z, pitch = 0, 
       animatedPart.multiply(p.local);
       animatedPart.setPosition(px + (kind === 'swing' ? Math.sin(time * 11) * phase * py * .25 : 0),py,pz);
       local = animatedPart;
+    }
+    if (collapse) {
+      crushedPart.multiplyMatrices(compression,local);
+      const height = Math.min(local.elements[13], 7);
+      const slide = Math.sin(collapse * Math.PI) * height * .13;
+      crushedPart.elements[12] += Math.sin(p.slot! * 1.93) * slide;
+      crushedPart.elements[14] += Math.cos(p.slot! * 1.93) * slide;
+      local = crushedPart;
     }
     mesh.setMatrixAt(p.slot!, scratch.multiplyMatrices(pivot.matrix, local));
     mesh.instanceMatrix.needsUpdate = true;
@@ -214,13 +227,13 @@ export class City {
       for (let iz = -3; iz <= 3; iz++) {
         const cx = ix * block, cz = iz * block;
         const lot: Prop[] = [];
-        const add = (x: number, z: number, tier: number, footprint: number, points: number, parts: Part[], angle = 0, traffic?: Traffic, patrol?: Patrol) => {
+        const add = (x: number, z: number, tier: number, footprint: number, points: number, parts: Part[], angle = 0, traffic?: Traffic, patrol?: Patrol, building = false) => {
           const transform = new T.Matrix4().makeScale(mapScale, mapScale, mapScale);
           for (const p of parts) p.local.premultiply(transform);
           if (traffic) traffic = { ...traffic, center:traffic.center * mapScale, span:traffic.span * mapScale, speed:traffic.speed * mapScale };
           if (patrol) patrol = { ...patrol, x:patrol.x * mapScale, z:patrol.z * mapScale, rx:patrol.rx * mapScale, rz:patrol.rz * mapScale };
           const prop = { x: (cx + x) * mapScale, z: (cz + z) * mapScale, y: tier ? .035 : 0,
-            tier, footprint:footprint * mapScale, points, parts, angle, traffic, patrol };
+            tier, footprint:footprint * mapScale, points, parts, angle, traffic, patrol, building };
           lot.push(prop);
           if (tier) {
             this.objects.push(prop);
@@ -254,13 +267,15 @@ export class City {
         } else {
           const tier = Math.abs(ix) + Math.abs(iz) < 3 ? 4 : (ix - iz) % 3 === 0 ? 6 : 5;
           if (tier === 6) {
-            add(0, -.9, 6, 7.4, 260, building(10.5, 18 + random() * 12, 9.6, color(), true));
+            add(0, -.9, 6, 7.4, 260, building(10.5, 18 + random() * 12, 9.6, color(), true), 0, undefined, undefined, true);
             add(-7.8, 5.5, 2, .89, 16, tree(false));
             add(7.8, 5.5, 2, .89, 16, tree(false));
           } else {
             const w = tier === 5 ? 7.7 : 5.2, d = tier === 5 ? 6.8 : 4.8;
             for (const x of [-4.8, 4.8]) for (const z of [-4.65, 4.65]) {
-              add(x, z, tier, Math.hypot(w + .3, d + .3) / 2, tier === 5 ? 95 : 55, building(w, (tier === 5 ? 7.2 : 3.9) + random() * 2.4, d, color(), false), z < 0 ? Math.PI : 0);
+              add(x, z, tier, Math.hypot(w + .3, d + .3) / 2, tier === 5 ? 95 : 55,
+                building(w, (tier === 5 ? 7.2 : 3.9) + random() * 2.4, d, color(), false),
+                z < 0 ? Math.PI : 0, undefined, undefined, true);
             }
           }
         }
@@ -282,6 +297,11 @@ export class City {
             add(side * 4, 7.3, 2, .43, 13, sizedParts(model(side < 0 ? 'woman' : 'walker', 0xe9b95e, dark), .43), 0, undefined,
               {x:side * 4,z:5,rx:2,rz:2.3,speed:.81,phase:0,stride:true});
           }
+        }
+        add(-9.3, 7, 1, .4, 5, sizedParts(model('hydrant',0xc06349,dark),.4));
+        add(9.15, -6.8, 2, .8, 13, sizedParts(model('bike',0x5d9d8e,dark),.8), Math.PI / 2);
+        if ((ix + iz) % 3 === 0) {
+          add(-6.5, 8.85, 2, .94, 16, sizedParts(model('stop',0x708eb1,dark),.94));
         }
         add(-4.7, 9.25, 2, .95, 16, [part(0x40877e, 0, .56, 0, 1.58, .93, .87), part(dark, 0, 1.05, 0, 1.68, .16, .95)]);
         for (let i = 0; i < 7; i++) {
@@ -323,7 +343,8 @@ export class City {
     const chunks = new Map<string, Prop[]>();
     for (const object of objects) {
       const { x, z, tier, points, radius, yaw, pieces, patrol } = object;
-      const prop = { x, z, tier, points, footprint:radius, angle:yaw, y:.083, parts:sizedParts(pieces, radius), patrol };
+      const prop = { x, z, tier, points, footprint:radius, angle:yaw, y:.083, parts:sizedParts(pieces, radius), patrol,
+        building:structures.has(object.name) };
       const key = `${Math.floor((x + extent) / sectorSize)},${Math.floor((z + extent) / sectorSize)}`;
       const chunk = chunks.get(key) ?? [];
       chunk.push(prop);
@@ -409,6 +430,7 @@ export class City {
     }
   }
 }
+
 
 
 

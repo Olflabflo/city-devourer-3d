@@ -156,7 +156,7 @@ function init(view: View) {
       if (!fits(radius, prop.footprint, distance)) continue;
       city.grid.remove(prop);
       unavailable.add(prop);
-      falling.push({ prop, x: prop.x, z: prop.z, age: 0, duration: .51 + prop.tier * .09 });
+      falling.push({ prop, x: prop.x, z: prop.z, age: 0, duration: prop.building ? 1.35 : .51 + prop.tier * .09 });
     }
     let gained = 0;
     for (let i = falling.length - 1; i >= 0; i--) {
@@ -164,11 +164,14 @@ function init(view: View) {
       const { prop } = entry;
       entry.age += dt;
       const t = Math.min(1, entry.age / entry.duration);
-      const pull = 1 - (1 - t) ** 2;
+      const progress = prop.building ? MathUtils.smoothstep(t,.27,1) : t;
+      const pull = 1 - (1 - progress) ** 2;
       const x = MathUtils.lerp(entry.x, player.x, pull);
       const z = MathUtils.lerp(entry.z, player.y, pull);
-      const y = prop.y + Math.sin(t * Math.PI) * .36 - (prop.footprint * .58 + .35) * t ** 2;
-      pose(prop, x, y, z, t * .5, Math.sin(t * Math.PI) * .22, 1 - t ** 1.35);
+      const y = prop.y + Math.sin(progress * Math.PI) * (prop.building ? 0 : .36)
+        - (prop.footprint * .58 + .35) * progress ** 2;
+      const collapse = prop.building ? MathUtils.smoothstep(t,.07,.59) : 0;
+      pose(prop, x, y, z, progress * .5, Math.sin(progress * Math.PI) * .22, 1 - progress ** 1.35, undefined, collapse);
       if (t < 1) continue;
       falling.splice(i, 1);
       gained += prop.points;
@@ -293,5 +296,6 @@ try {
   id('landscape-picker').hidden = true;
   play.hidden = true;
 }
+
 
 

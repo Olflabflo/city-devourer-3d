@@ -60,3 +60,12 @@ City Devourer 3D ist ein statisch ausgeliefertes WebGL-Arcadespiel für Desktop 
 - Abnahme über den [Netlify Deploy Preview](https://deploy-preview-1--city-devourer-3d.netlify.app/) zu [PR #1](https://github.com/Olflabflo/city-devourer-3d/pull/1).
 - Stilkorrektur: Ruhigere Materialien, weniger Fassaden- und Deckdetails sowie schwächere Sogspuren für eine minimalistische Arcade-Grafik mit gedeckteren Farben und erwachsenen Figurenproportionen.
 
+
+## WP-10 · Stadtstruktur, Ufer und historischer Verkehr
+
+- Mindestens 1.880 sammelbare Objekte pro Karte auf der kompakten Spielfläche. Die Verteilung folgt Straßen, Ufern und seitlichen Reihen mit passender Ausstattung. Im Hafenviertel ergänzen Fahrräder, Haltestellen und Hydranten die Straßenzüge.
+- Burg mit Mauerring, Toröffnung, Ecktürmen und Innenhof. In der Antike bilden Säulenreihen und Marktstände eine Hauptachse. Hafenanlagen erhalten Liegeplätze mit Pollern und Frachtreihen.
+- Routen werden an der Geländefläche geprüft. Landfiguren und Gespanne bleiben an Land, Schiffe bleiben auf dem Wasser. Antike und Mittelalter verwenden Handkarren, Pferdegespanne und zeitgemäße Boote.
+- Gebäude fallen vor dem Einsammeln sichtbar in sich zusammen. Der Rundenneustart setzt die Bauteile zurück.
+- Zehn automatisierte Tests prüfen unter anderem Dichte, Wahrzeichen, historische Fahrzeugtypen, Routen und den Gebäude-Reset. Bereitstellung über [PR #1](https://github.com/Olflabflo/city-devourer-3d/pull/1) im [Netlify Deploy Preview](https://deploy-preview-1--city-devourer-3d.netlify.app/).
+

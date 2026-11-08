@@ -1,5 +1,6 @@
 import type { Landscape } from './landscapes.ts';
 import { model, piece, type Piece } from './world-models.ts';
+import { Grid } from './rules.ts';
 
 type Point = readonly [number, number];
 type Layout = {
@@ -42,8 +43,8 @@ export const mapScale = .8;
 const startZ = 11.25;
 export const spawn = [0, startZ * mapScale] as const;
 export type Patrol = { x: number; z: number; rx: number; rz: number; speed: number; phase: number; stride?: boolean; hover?: number };
-type ObjectPlan = { x: number; z: number; tier: number; radius: number; points: number; yaw: number; pieces: Piece[]; patrol?: Patrol };
-type WorldPlan = { scenery: Piece[]; objects: ObjectPlan[] };
+type ObjectPlan = { x: number; z: number; tier: number; radius: number; points: number; yaw: number; name: string; pieces: Piece[]; patrol?: Patrol };
+type WorldPlan = { scenery: Piece[]; objects: ObjectPlan[]; isLand(x: number, z: number): boolean };
 const radii = [.34, .83, 1.62, 2.92, 4.58, 7.25];
 const points = [6, 14, 28, 52, 90, 220];
 const accentWhite = 0xf3ebd7;
@@ -51,17 +52,48 @@ const riverBlue = 0x3b8398;
 const movingModels: Record<Landscape['group'], readonly string[]> = {
   Erde: ['walker', 'rover', 'woman'],
   Wasser: ['sail', 'cargo', 'woman'],
-  Geschichte: ['roman', 'cart', 'roman-woman', 'roman'],
+  Geschichte: ['roman', 'handcart', 'roman-woman', 'carriage'],
   Miniatur: ['ant', 'beetle'],
   'Science-Fiction': ['robot', 'drone', 'shuttle', 'robot'],
 };
 const localTraffic: Partial<Record<Landscape['id'], readonly string[]>> = {
-  amazon: ['walker', 'longboat'], egypt: ['walker', 'sail'], arctic: ['walker', 'rover'],
+  amazon: ['walker', 'longboat'], arctic: ['walker', 'rover'],
   pirate: ['longboat', 'galleon'], reef: ['fish', 'fish'], venice: ['walker', 'longboat'],
-  icebreaker: ['cargo', 'breaker'], viking: ['walker', 'longboat'], toys: ['toy', 'train'],
+  icebreaker: ['cargo', 'breaker'], viking: ['walker', 'longboat', 'handcart', 'woman'], toys: ['toy', 'train'],
   picnic: ['ant', 'beetle'], desk: ['ant', 'beetle'], bench: ['beetle', 'toy'],
   cargo: ['cargo', 'walker', 'sail', 'woman'],
+  castle: ['walker', 'carriage', 'woman', 'handcart'],
+  bazaar: ['walker', 'handcart', 'woman', 'carriage'],
+  egypt: ['roman-woman', 'sail', 'handcart', 'walker'],
 };
+
+export const landActors = new Set(['walker','woman','roman','roman-woman','handcart','carriage','cart','rover','train']);
+export const waterActors = new Set(['sail','galleon','longboat','cargo','breaker','fish','wreck','buoy','coral','shell','lily','iceberg']);
+const extras: Record<Landscape['group'], readonly string[][]> = {
+  Erde: [['stone','sack','seed','planter'], ['fir','barrel','planter'], ['awning','cabin']],
+  Wasser: [['buoy','rope','shell','bollard','crate'], ['barrel','buoy','crate'], ['sail','coral','cargo']],
+  Geschichte: [['urn','sack','jar','rope'], ['stall','column','barrel','planter'], ['handcart','arch','awning']],
+  Miniatur: [['seed','fruit','drop','clip'], ['leaf','fruit','toy'], ['flower','ant','beetle']],
+  'Science-Fiction': [['battery','signal','beacon','crate'], ['supply','solar','panel'], ['rover','drone','module']],
+};
+const localExtras: Partial<Record<Landscape['id'], readonly string[][]>> = {
+  ants: [['seed','stone','drop'],['leaf','ant','fruit'],['ant','beetle','root']],
+  garden: [['drop','seed','stone'],['leaf','fruit','flower'],['flower','ant','beetle']],
+  picnic: [['seed','fruit','cup'],['leaf','fruit','cup'],['basket','flower','beetle']],
+  toys: [['brick','toy','pencil'],['brick','toy','panel'],['toy','train','basket']],
+  desk: [['clip','screw','pencil'],['paper','pencil','cup'],['keyboard','panel','basket']],
+  bench: [['nut','screw','clip'],['toolbox','panel','wrench'],['vise','toolbox','wrench']],
+};
+
+function covers(p: Piece, x: number, z: number, margin: number) {
+  const dx = x - p.x, dz = z - p.z;
+  const cos = Math.cos(p.yaw), sin = Math.sin(p.yaw);
+  const localX = dx * cos - dz * sin, localZ = dx * sin + dz * cos;
+  const halfW = p.w / 2 + margin, halfD = p.d / 2 + margin;
+  if (halfW <= 0 || halfD <= 0) return false;
+  if (p.shape === 'pole') return (localX / halfW) ** 2 + (localZ / halfD) ** 2 < .8;
+  return Math.abs(localX) <= halfW && Math.abs(localZ) <= halfD;
+}
 
 function strip(color: number, from: Point, to: Point, width: number, y: number) {
   const dx = to[0] - from[0], dz = to[1] - from[1];
@@ -94,6 +126,13 @@ export function planWorld(world: Landscape): WorldPlan {
     return state / 4294967296;
   };
   const scenery: Piece[] = [];
+  const land: Piece[] = [];
+  const water: Piece[] = [];
+  const walls: Piece[] = [];
+  const waterMap = world.group === 'Wasser' || ['arctic','viking'].includes(world.id);
+  const addSurface = (p: Piece, surface: Piece[]) => { scenery.push(p); surface.push(p); };
+  const onLand = (x: number, z: number, margin = 0) =>
+    (!waterMap || land.some(p => covers(p,x,z,-margin))) && !water.some(p => covers(p,x,z,margin));
   if (layout.groundShape === 'tiles') {
     for (let x = -96; x <= 96; x += 12) for (let z = -96; z <= 96; z += 12) {
       scenery.push(piece((x + z) % 24 === 0 ? world.detail : world.ground, x, .019, z, 12, .016, 12));
@@ -102,23 +141,33 @@ export function planWorld(world: Landscape): WorldPlan {
     for (let z = -104; z <= 104; z += 8) scenery.push(piece(z % 16 ? world.detail : world.ground, 0, .014, z, 212, .018, 7.87));
   } else if (layout.groundShape === 'ring') {
     const diameter = world.layout === 'ring' ? 151 : world.layout === 'oasis' ? 31 : 63;
-    scenery.push(piece(world.layout === 'oasis' ? 0x498b96 : world.detail, world.layout === 'oasis' ? 5 : 0,
-      .014, -12, diameter, .055, diameter, world.layout === 'oasis' ? 'pole' : 'ring'));
+    const feature = piece(world.layout === 'oasis' ? 0x498b96 : world.detail, world.layout === 'oasis' ? 5 : 0,
+      .014, -12, diameter, .055, diameter, world.layout === 'oasis' ? 'pole' : 'ring');
+    if (world.layout === 'oasis') addSurface(feature,water);
+    else scenery.push(feature);
   }
   const isRiver = world.layout === 'river';
   const trails = world.id === 'egypt'
     ? [[[-94,34],[-41,19],[-16,8],[21,3],[87,9]], ...layout.trails.slice(1)] as readonly (readonly Point[])[]
     : layout.trails;
   for (const [route, trail] of trails.entries()) {
-    for (let i = 1; i < trail.length; i++) scenery.push(strip(world.detail, trail[i - 1], trail[i], layout.width, .05));
+    for (let i = 1; i < trail.length; i++) {
+      if (['fleet','reef','channel'].includes(world.layout)) {
+        scenery.push(strip(0x387590, trail[i - 1], trail[i], layout.width, .05));
+      } else {
+        addSurface(strip(world.detail, trail[i - 1], trail[i], layout.width, .05),land);
+      }
+    }
     if (isRiver && route === 0) {
-      for (let i = 1; i < trail.length; i++) scenery.push(strip(riverBlue, trail[i - 1], trail[i], layout.width * .6, .075));
+      for (let i = 1; i < trail.length; i++) addSurface(strip(riverBlue, trail[i - 1], trail[i], layout.width * .6, .075),water);
     }
     for (let i = 1; i < 14; i++) {
       const {x, z, dx, dz} = sample(trail, i / 14);
       if (layout.groundShape === 'islands') {
         const size = 7 + random() * 13;
-        scenery.push(piece(world.detail, x + dx * 2, .023, z + dz * 2, size, .05, size * .77, 'pole', random()));
+        const island = piece(world.detail, x + dx * 2, .062, z + dz * 2, size, .05, size * .77, 'pole', random());
+        if (world.layout === 'reef') scenery.push(island);
+        else addSurface(island,land);
       }
       const track = world.layout === 'tracks';
       if (track || world.group === 'Science-Fiction' || world.layout === 'fleet' || world.layout === 'forum' || (isRiver && route === 0)) {
@@ -139,32 +188,118 @@ export function planWorld(world: Landscape): WorldPlan {
     }
   }
   if (world.layout === 'courtyard') {
-    for (const x of [-42,42]) scenery.push(piece(world.detail, x, 1, -20, 2.8, 2, 47));
-    for (const x of [-28, 28]) scenery.push(piece(world.detail, x, 1, -44, 25, 2, 2.8));
+    scenery.push(piece(0xc7bba0, 0, .035, -21, 54, .03, 49));
+    for (const x of [-26,26]) addSurface(piece(world.detail, x, 1.45, -21, 2.8, 2.9, 48),walls);
+    addSurface(piece(world.detail, 0, 1.45, -45, 54, 2.9, 2.8),walls);
+    for (const x of [-16,16]) addSurface(piece(world.detail, x, 1.45, 3, 22, 2.9, 2.8),walls);
+    for (let i = -24; i <= 24; i += 4) {
+      scenery.push(piece(world.detail, i, 3.2, -45, 1.6, .65, 2.2));
+      if (Math.abs(i) > 5) scenery.push(piece(world.detail, i, 3.2, 3, 1.6, .65, 2.2));
+      for (const x of [-26,26]) scenery.push(piece(world.detail, x, 3.2, i - 21, 2.2, .65, 1.6));
+    }
   }
 
   const objects: ObjectPlan[] = [];
-  const add = (x: number, z: number, tier: number, yaw = 0, name = world.models[tier - 1], patrol?: Patrol) => {
+  const occupied = new Grid<ObjectPlan>(5);
+  const alternatives = (tier: number, x: number, z: number) => {
+    const wet = !onLand(x,z);
+    const primary = world.models[tier - 1];
+    const options = [primary, ...((localExtras[world.id] ?? extras[world.group])[tier - 1] ?? [])];
+    if (wet) {
+      const aquatic = options.filter(name => waterActors.has(name));
+      if (tier <= 2) aquatic.push('buoy','rope','shell','crate');
+      if (tier >= 3) {
+        if (world.id === 'arctic' || world.id === 'icebreaker') aquatic.push('iceberg','breaker');
+        else if (world.layout === 'reef') aquatic.push('coral','wreck');
+        else aquatic.push('sail','wreck');
+      }
+      return aquatic;
+    }
+    const dry = options.filter(name => !waterActors.has(name));
+    return dry.length ? dry : [tier > 3 ? 'awning' : 'crate'];
+  };
+  const add = (x: number, z: number, tier: number, yaw = 0, name?: string, patrol?: Patrol) => {
     const radius = radii[tier - 1];
     if (Math.abs(x) > 99 || Math.abs(z) > 99) return false;
+    if (!name) {
+      const options = alternatives(tier,x,z);
+      name = options[(Math.round(Math.abs(x * 13 + z * 17))) % options.length];
+    }
+    if (name !== 'tower' && walls.some(wall => covers(wall,x,z,radius / mapScale))) return false;
     x *= mapScale;
     z *= mapScale;
-    if (objects.some(other => Math.hypot(x - other.x, z - other.z) < radius + other.radius + .35)) return false;
+    for (const other of occupied.near(x,z,radius + radii[5] + .35)) {
+      if ((x - other.x) ** 2 + (z - other.z) ** 2 < (radius + other.radius + .35) ** 2) return false;
+    }
     if (patrol) patrol = { ...patrol, x:patrol.x * mapScale, z:patrol.z * mapScale,
       rx:patrol.rx * mapScale, rz:patrol.rz * mapScale };
-    objects.push({ x, z, tier, radius, yaw, points:points[tier - 1], patrol,
-      pieces:model(name, world.accent, world.detail) });
+    const object = { x, z, tier, radius, yaw, name, points:points[tier - 1], patrol,
+      pieces:model(name, world.accent, world.detail) };
+    objects.push(object);
+    occupied.add(object);
     return true;
   };
-  add(-8, -17, 6, .24);
+  const landmark = world.models[5];
+  const landmarkSites: Point[] = [[-8,-17],[16,-24],[-17,-27],[0,-35],[-44,23],
+    ...trails.flatMap(trail => [.38,.48,.58,.68].map(t => {
+      const {x,z} = sample(trail,t);
+      return [x,z] as Point;
+    }))];
+  for (const [x,z] of landmarkSites) {
+    const needsWater = waterActors.has(landmark);
+    if (onLand(x,z) === needsWater || !add(x,z,6,.24,landmark)) continue;
+    if (waterMap && !needsWater) {
+      addSurface(piece(world.detail,x,.055,z,23,.04,23, world.id === 'arctic' ? 'pole' : 'box'),land);
+    }
+    break;
+  }
+  if (world.layout === 'courtyard') {
+    for (const x of [-26,26]) for (const z of [-45,3]) add(x,z,5,0,'tower');
+    for (const x of [-12,13]) for (const z of [-34,-8]) add(x,z,3,0,'awning');
+    for (const x of [-10,10]) for (let z = 10; z < 38; z += 5) add(x,z,2,0,'barrel');
+  }
+  if (world.layout === 'forum' || world.layout === 'terraces') {
+    for (const side of [-1,1]) {
+      for (let x = -61; x <= 61; x += 8) add(x, side * 8, 2, 0, 'column');
+      for (let x = -58; x <= 58; x += 16) add(x, side * 17, 3, side > 0 ? Math.PI : 0, 'stall');
+    }
+  }
+  if (world.layout === 'quays' || world.layout === 'canals') {
+    for (const trail of trails) for (let i = 1; i < 22; i++) {
+      const {x,z,dx,dz} = sample(trail,i / 22);
+      const distance = layout.width / 2 - 1.4;
+      for (const side of [-1,1]) {
+        const px = x + dz * distance * side, pz = z - dx * distance * side;
+        if (onLand(px,pz)) add(px,pz,i % 4 === 0 ? 2 : 1,Math.atan2(-dz,dx),i % 4 === 0 ? 'supply' : 'bollard');
+      }
+    }
+  }
   for (let i = 1; i <= 8; i++) add(-i * 1.55, startZ + i * .815, 1, i * .38);
   const actors = localTraffic[world.id] ?? movingModels[world.group];
   const addPatrol = (x: number, z: number, i: number) => {
-    const name = actors[i % actors.length];
+    const wet = !onLand(x,z);
+    const eligible = actors.filter(name => wet ? !landActors.has(name) : !waterActors.has(name));
+    if (!eligible.length) return false;
+    const name = eligible[i % eligible.length];
     const stride = ['walker','woman','roman','roman-woman','robot','ant','beetle','toy'].includes(name);
     const phase = (i % 4) * Math.PI / 2;
     const route = { x, z, phase, stride, rx:stride ? 3.1 : 6.2, rz:stride ? 1.6 : 3.3, speed:stride ? .65 : .83,
       hover:name === 'shuttle' ? 1.1 : name === 'drone' ? .65 : 0 };
+    if (landActors.has(name) || waterActors.has(name)) {
+      const clearance = stride ? 1.05 : 2.03;
+      const staysOnSurface = () => Array.from({length:40}, (_, step) => step * Math.PI / 20).every(t => {
+        const px = x + route.rx * Math.sin(t), pz = z + route.rz * Math.cos(t);
+        if (landActors.has(name)) {
+          return onLand(px,pz,clearance) && !walls.some(wall => covers(wall,px,pz,clearance));
+        }
+        return !onLand(px,pz,-clearance);
+      });
+      for (let attempt = 0; attempt < 4 && !staysOnSurface(); attempt++) {
+        route.rx *= .65;
+        route.rz *= .65;
+      }
+      if (!staysOnSurface()) return false;
+    }
     const angle = Math.atan2(route.rz * Math.sin(phase), route.rx * Math.cos(phase));
     return add(x + route.rx * Math.sin(phase), z + route.rz * Math.cos(phase), stride ? 2 : 3, angle, name, route);
   };
@@ -182,6 +317,18 @@ export function planWorld(world: Landscape): WorldPlan {
       const tier = [2,1,3,2,4,1,5][i % 7];
       const offset = side * (layout.width / 2 + 2.1 + random() * 3.4);
       add(x + dz * offset, z - dx * offset, tier, Math.atan2(-dz, dx));
+      if (i % 5 === 2 && ['forum','alleys','neon','quays','canals','ring'].includes(world.layout)) {
+        const setback = waterMap ? layout.width / 2 - 4 : layout.width / 2 + 8;
+        const dxRow = dz * setback, dzRow = -dx * setback;
+        for (const rowSide of [-1,1]) {
+          const px = x + rowSide * dxRow, pz = z + rowSide * dzRow;
+          if (onLand(px,pz,4)) {
+            const building = world.layout === 'neon' ? 'neon' : world.layout === 'ring' ? 'module' :
+              world.layout === 'canals' ? 'palazzo' : 'awning';
+            add(px,pz,4,Math.atan2(-dx,-dz) + (rowSide > 0 ? Math.PI : 0),building);
+          }
+        }
+      }
       if (i % 3 === 0) add(x - dz * offset, z + dx * offset, 1, random() * 6.28);
       if (i % 2 === 1) addPatrol(x - dz * 3, z + dx * 3, i + Math.floor(i / 3));
       for (let j = 0; j < 2; j++) {
@@ -195,15 +342,23 @@ export function planWorld(world: Landscape): WorldPlan {
     }
   }
   // Enforce a supply of each tier even if the trails cross or run close to the boundary.
-  const minimum = [175, 69, 33, 15, 10, 4];
+  const minimum = [1280, 425, 108, 42, 20, 5];
   for (let tier = 6; tier >= 1; tier--) {
     let count = objects.filter(object => object.tier === tier).length;
-    for (let attempt = 0; count < minimum[tier - 1] && attempt < 800; attempt++) {
-      const x = (random() * 2 - 1) * 90, z = (random() * 2 - 1) * 90;
+    for (let attempt = 0; count < minimum[tier - 1] && attempt < 18000; attempt++) {
+      const trail = trails[attempt % trails.length];
+      const along = sample(trail,.03 + random() * .94);
+      const offset = (random() < .5 ? -1 : 1) * (layout.width / 2 + 3 + Math.floor(random() * 11) * 3.7 + random() * 1.7);
+      const x = along.x + along.dz * offset, z = along.z - along.dx * offset;
       if (Math.hypot(x, z - startZ) > 11 && add(x, z, tier, random() * 6.28)) count++;
     }
     if (count < minimum[tier - 1]) throw new Error(`Insufficient space in ${world.name} for tier ${tier}`);
   }
-  return { scenery: scenery.map(p => ({ ...p, x:p.x * mapScale, z:p.z * mapScale, w:p.w * mapScale, d:p.d * mapScale })), objects };
+  return {
+    scenery: scenery.map(p => ({ ...p, x:p.x * mapScale, z:p.z * mapScale, w:p.w * mapScale, d:p.d * mapScale })),
+    objects,
+    isLand: (x,z) => onLand(x / mapScale,z / mapScale),
+  };
 }
+
 
