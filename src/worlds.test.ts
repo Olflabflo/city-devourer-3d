@@ -62,7 +62,7 @@ test('each map has nearby collectibles and active traffic that resets with the r
   for (const world of landscapes) {
     const city = new City(false, world);
     try {
-      assert.ok(city.objects.length >= 240, `${world.name}: collectible density`);
+      assert.ok(city.objects.length >= 300, `${world.name}: collectible density`);
       const nearSpawn = city.objects.filter(item => Math.hypot(item.x, item.z - spawn[1]) <= 24);
       assert.ok(nearSpawn.length >= 25, `${world.name}: enough to find near the start`);
       const moving = city.traffic.filter(item => Math.hypot(item.x, item.z - spawn[1]) <= 30);
@@ -78,4 +78,5 @@ test('each map has nearby collectibles and active traffic that resets with the r
     }
   }
 });
+
 

@@ -19,6 +19,7 @@ const play = id<HTMLButtonElement>('play');
 const pause = id<HTMLButtonElement>('pause');
 const sound = id<HTMLButtonElement>('sound');
 const menu = id<HTMLButtonElement>('menu');
+const leave = id<HTMLButtonElement>('leave');
 const pad = id('joystick');
 const clock = id('clock');
 const landscape = id<HTMLSelectElement>('landscape');
@@ -44,6 +45,8 @@ function init(view: View) {
   const player = new Vector2(...spawn);
   const velocity = new Vector2();
   const desired = new Vector2();
+  const clickTarget = new Vector2();
+  let followingClick = false;
   const falling: Falling[] = [];
   const unavailable = new Set<Prop>();
   let state: State = 'menu';
@@ -67,6 +70,8 @@ function init(view: View) {
     overlay.hidden = next === 'active';
     hud.hidden = next !== 'active';
     pause.hidden = next !== 'active';
+    leave.hidden = next !== 'active';
+    followingClick = false;
     pad.dataset.active = String(next === 'active');
     pad.hidden = next !== 'active' || !input.touch;
     modes.hidden = next !== 'menu';
@@ -82,9 +87,9 @@ function init(view: View) {
       return;
     }
     const title = id('title');
-    if (next === 'menu') title.innerHTML = 'CITY<br>DEVOURER<span>.</span>';
-    else title.textContent = next === 'paused' ? 'PAUSE' : swallowed === city.objects.length ? 'WELT VERSCHLUCKT' : 'ZEIT ABGELAUFEN';
-    id('summary').textContent = next === 'menu' ? (map === harbor ? 'Ein Riss unter der Stadt. Alles, was hineinpasst, gehört dir.' : map.description) :
+    if (next === 'menu') title.innerHTML = 'WIRBEL<br>WELTEN<span>.</span>';
+    else title.textContent = next === 'paused' ? 'PAUSE' : swallowed === city.objects.length ? 'ALLES EINGESAMMELT' : 'ZEIT ABGELAUFEN';
+    id('summary').textContent = next === 'menu' ? (map === harbor ? 'Sammle mit deinem Sternenwirbel, was hineinpasst. Alles landet im Sternenlager.' : map.description) :
       `${format.format(score)} Punkte · ${swallowed} von ${city.objects.length} Objekten · Stufe ${stage(score)}`;
     id('district').textContent = map.name;
     play.innerHTML = `${next === 'paused' ? 'WEITERSPIELEN' : next === 'over' ? 'NEUSTART' : 'SPIELEN'} <span>↗</span>`;
@@ -131,6 +136,17 @@ function init(view: View) {
     const speed = 8.2 + Math.min(radius, 8) * .32;
     // Match the ground projection of the camera's right and down directions.
     desired.set(.885 * axis.x + .465 * axis.y, -.465 * axis.x + .885 * axis.y).multiplyScalar(speed);
+    if (axis.lengthSq()) followingClick = false;
+    if (followingClick) {
+      desired.copy(clickTarget).sub(player);
+      const remaining = desired.length();
+      if (remaining < .22) {
+        followingClick = false;
+        desired.set(0, 0);
+      } else {
+        desired.setLength(Math.min(speed, remaining * 4.5));
+      }
+    }
     velocity.lerp(desired, 1 - Math.exp(-(axis.lengthSq() ? 7.5 : 12) * dt));
     player.addScaledVector(velocity, dt).clampScalar(-extent, extent);
     radius = MathUtils.lerp(radius, targetRadius(score), 1 - Math.exp(-4.8 * dt));
@@ -151,8 +167,8 @@ function init(view: View) {
       const pull = 1 - (1 - t) ** 2;
       const x = MathUtils.lerp(entry.x, player.x, pull);
       const z = MathUtils.lerp(entry.z, player.y, pull);
-      const y = prop.y - (prop.footprint * 1.7 + .9) * t ** 2;
-      pose(prop, x, y, z, t * 1.5, Math.sin(t * 9) * .28 + t, (1 - t ** 1.75));
+      const y = prop.y + Math.sin(t * Math.PI) * .36 - (prop.footprint * .58 + .35) * t ** 2;
+      pose(prop, x, y, z, t * .5, Math.sin(t * Math.PI) * .22, 1 - t ** 1.35);
       if (t < 1) continue;
       falling.splice(i, 1);
       gained += prop.points;
@@ -223,7 +239,7 @@ function init(view: View) {
     if (state === 'paused') setState('active');
     else start();
   };
-  menu.onclick = () => {
+  function returnToMenu() {
     city.reset();
     unavailable.clear();
     falling.length = 0;
@@ -231,7 +247,14 @@ function init(view: View) {
     radius = targetRadius(0);
     boost = 0;
     setState('menu');
-  };
+    play.focus();
+  }
+  menu.onclick = leave.onclick = returnToMenu;
+  view.renderer.domElement.addEventListener('pointerdown', event => {
+    if (state !== 'active' || event.pointerType !== 'mouse' || event.button !== 0) return;
+    followingClick = view.groundPoint(event.clientX, event.clientY, clickTarget);
+    clickTarget.clampScalar(-extent, extent);
+  });
   pause.onclick = togglePause;
   function soundLabel() {
     sound.textContent = audio.enabled ? 'TON AN' : 'TON AUS';

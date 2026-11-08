@@ -41,25 +41,26 @@ const layouts: Record<Exclude<Landscape['layout'], 'grid'>, Layout> = {
 export const mapScale = .8;
 const startZ = 11.25;
 export const spawn = [0, startZ * mapScale] as const;
-export type Patrol = { x: number; z: number; rx: number; rz: number; speed: number; phase: number; stride?: boolean };
+export type Patrol = { x: number; z: number; rx: number; rz: number; speed: number; phase: number; stride?: boolean; hover?: number };
 type ObjectPlan = { x: number; z: number; tier: number; radius: number; points: number; yaw: number; pieces: Piece[]; patrol?: Patrol };
 type WorldPlan = { scenery: Piece[]; objects: ObjectPlan[] };
 const radii = [.34, .83, 1.62, 2.92, 4.58, 7.25];
 const points = [6, 14, 28, 52, 90, 220];
 const accentWhite = 0xf3ebd7;
 const riverBlue = 0x3b8398;
-const movingModels: Record<Landscape['group'], readonly [string, string]> = {
-  Erde: ['walker', 'rover'],
-  Wasser: ['sail', 'cargo'],
-  Geschichte: ['walker', 'cart'],
+const movingModels: Record<Landscape['group'], readonly string[]> = {
+  Erde: ['walker', 'rover', 'woman'],
+  Wasser: ['sail', 'cargo', 'woman'],
+  Geschichte: ['roman', 'cart', 'roman-woman', 'roman'],
   Miniatur: ['ant', 'beetle'],
-  'Science-Fiction': ['rover', 'drone'],
+  'Science-Fiction': ['robot', 'drone', 'shuttle', 'robot'],
 };
-const localTraffic: Partial<Record<Landscape['id'], readonly [string, string]>> = {
+const localTraffic: Partial<Record<Landscape['id'], readonly string[]>> = {
   amazon: ['walker', 'longboat'], egypt: ['walker', 'sail'], arctic: ['walker', 'rover'],
   pirate: ['longboat', 'galleon'], reef: ['fish', 'fish'], venice: ['walker', 'longboat'],
   icebreaker: ['cargo', 'breaker'], viking: ['walker', 'longboat'], toys: ['toy', 'train'],
   picnic: ['ant', 'beetle'], desk: ['ant', 'beetle'], bench: ['beetle', 'toy'],
+  cargo: ['cargo', 'walker', 'sail', 'woman'],
 };
 
 function strip(color: number, from: Point, to: Point, width: number, y: number) {
@@ -159,14 +160,16 @@ export function planWorld(world: Landscape): WorldPlan {
   for (let i = 1; i <= 8; i++) add(-i * 1.55, startZ + i * .815, 1, i * .38);
   const actors = localTraffic[world.id] ?? movingModels[world.group];
   const addPatrol = (x: number, z: number, i: number) => {
-    const name = actors[i % 2];
-    const stride = ['walker','ant','beetle','toy'].includes(name);
+    const name = actors[i % actors.length];
+    const stride = ['walker','woman','roman','roman-woman','robot','ant','beetle','toy'].includes(name);
     const phase = (i % 4) * Math.PI / 2;
-    const route = { x, z, phase, stride, rx:stride ? 3.1 : 6.2, rz:stride ? 1.6 : 3.3, speed:stride ? .65 : .83 };
+    const route = { x, z, phase, stride, rx:stride ? 3.1 : 6.2, rz:stride ? 1.6 : 3.3, speed:stride ? .65 : .83,
+      hover:name === 'shuttle' ? 1.1 : name === 'drone' ? .65 : 0 };
     const angle = Math.atan2(route.rz * Math.sin(phase), route.rx * Math.cos(phase));
     return add(x + route.rx * Math.sin(phase), z + route.rz * Math.cos(phase), stride ? 2 : 3, angle, name, route);
   };
   for (const [i, [x,z]] of ([[4,4],[12,8],[17,17],[4,23],[-5,27],[-16,5],[18,-3],[-19,14]] as Point[]).entries()) addPatrol(x,z,i);
+  for (const [i,[x,z]] of ([[1,19],[10,23],[-9,9],[15,0],[-16,26],[22,10]] as Point[]).entries()) addPatrol(x,z,i);
   for (let i = 0; i < 42; i++) {
     const angle = i * 2.39996;
     const radius = 6 + (i % 7) * 2.5;
@@ -180,7 +183,7 @@ export function planWorld(world: Landscape): WorldPlan {
       const offset = side * (layout.width / 2 + 2.1 + random() * 3.4);
       add(x + dz * offset, z - dx * offset, tier, Math.atan2(-dz, dx));
       if (i % 3 === 0) add(x - dz * offset, z + dx * offset, 1, random() * 6.28);
-      if (i % 3 === 1) addPatrol(x - dz * 3, z + dx * 3, i);
+      if (i % 2 === 1) addPatrol(x - dz * 3, z + dx * 3, i + Math.floor(i / 3));
       for (let j = 0; j < 2; j++) {
         const gap = layout.width * .5 + 4 + j * 3;
         const side = j === 0 ? 1 : -1;
@@ -192,7 +195,7 @@ export function planWorld(world: Landscape): WorldPlan {
     }
   }
   // Enforce a supply of each tier even if the trails cross or run close to the boundary.
-  const minimum = [140, 50, 25, 13, 9, 4];
+  const minimum = [175, 69, 33, 15, 10, 4];
   for (let tier = 6; tier >= 1; tier--) {
     let count = objects.filter(object => object.tier === tier).length;
     for (let attempt = 0; count < minimum[tier - 1] && attempt < 800; attempt++) {
@@ -203,3 +206,4 @@ export function planWorld(world: Landscape): WorldPlan {
   }
   return { scenery: scenery.map(p => ({ ...p, x:p.x * mapScale, z:p.z * mapScale, w:p.w * mapScale, d:p.d * mapScale })), objects };
 }
+

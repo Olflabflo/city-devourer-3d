@@ -1,7 +1,8 @@
-export type Shape = 'box' | 'pole' | 'crown' | 'wheel' | 'cone' | 'pyramid' | 'gem' | 'ring' | 'sphere' | 'hull';
+export type Shape = 'box' | 'pole' | 'crown' | 'wheel' | 'cone' | 'pyramid' | 'gem' | 'ring' | 'sphere' | 'hull' | 'ship';
 export type Piece = {
   shape: Shape; color: number; x: number; y: number; z: number;
   w: number; h: number; d: number; yaw: number; pitch: number; roll: number;
+  motion?: { kind: 'swing' | 'spin'; phase: number };
 };
 export function piece(color: number, x: number, y: number, z: number, w: number, h: number, d: number,
   shape: Shape = 'box', yaw = 0, pitch = 0, roll = 0): Piece {
@@ -14,6 +15,9 @@ const ivory = 0xf4e3c1;
 const foliage = 0x437d4d;
 const glass = 0x82c1df;
 const white = 0xf3f1e3;
+function animated(part: Piece, kind: 'swing' | 'spin', phase = 0): Piece {
+  return { ...part, motion: { kind, phase } };
+}
 
 export function model(name: string, a: number, b: number): Piece[] {
   const p = piece;
@@ -41,14 +45,34 @@ export function model(name: string, a: number, b: number): Piece[] {
       p(b, -.18, .84, 0, .58, .42, .67), p(a, .29, .8, .04, .33, .31, .45),
       p(bark, .91, .44, 0, .55, .08, .09),
     ];
-    case 'walker': return [
-      p(metal, .03, .23, -.12, .18, .46, .15, 'box', 0, 0, .23),
-      p(metal, -.05, .23, .12, .18, .46, .15, 'box', 0, 0, -.23),
-      p(a, 0, .58, 0, .29, .43, .43),
-      p(0xe0af83, .02, .94, 0, .32, .34, .32, 'sphere'),
-      p(b, .02, 1.07, 0, .34, .13, .36, 'pole'),
-      ...[-1, 1].map(side => p(a, .02, .57, side * .26, .13, .35, .12, 'box', 0, 0, side * .35)),
-    ];
+    case 'walker': case 'woman': case 'roman': case 'roman-woman': case 'robot': {
+      const woman = name === 'woman' || name === 'roman-woman';
+      const ancient = name.startsWith('roman');
+      const robot = name === 'robot';
+      const skin = robot ? 0xaad4dd : woman ? 0xb77d57 : 0xe6ae85;
+      const hair = robot ? metal : woman ? 0x58322d : 0x473c36;
+      const garment = ancient ? (woman ? 0x619c94 : 0xc05245) : a;
+      return [
+        p(garment, 0, .66, 0, .35, .39, .43, 'sphere'),
+        p(ancient ? ivory : b, 0, .5, 0, .32, .08, .4),
+        p(skin, .045, .96, 0, .34, .36, .34, robot ? 'box' : 'sphere'),
+        p(hair, -.025, 1.08, 0, .37, .16, .36, robot ? 'box' : 'sphere'),
+        ...(woman ? [p(hair, -.18, .91, 0, .19, .31, .25, 'sphere')] : []),
+        ...[-1, 1].flatMap(side => [
+          p(robot ? 0x57f5f5 : metal, .202, .98, side * .075, .034, .038, .04, 'sphere'),
+          animated(p(ancient ? skin : metal, 0, .27, side * .12, .16, .44, .145), 'swing', side),
+          animated(p(hair, .052, .105, side * .12, .235, .125, .15, 'sphere'), 'swing', side),
+          animated(p(skin, .01, .59, side * .245, .125, .33, .12, 'sphere'), 'swing', -side),
+        ]),
+        ...(ancient && !woman ? [
+          p(ivory, .03, 1.07, 0, .38, .19, .36, 'sphere'),
+          p(0xb64443, -.025, 1.19, 0, .28, .16, .085, 'sphere'),
+          p(0xab5341, .01, .54, -.32, .28, .47, .105, 'sphere'),
+          p(0xf1c873, .078, .55, -.373, .08, .09, .035, 'sphere'),
+        ] : []),
+        ...(robot ? [p(0x57f5f5, .17, .67, 0, .08, .16, .22), p(metal, -.05, 1.22, 0, .048, .24, .05, 'pole')] : []),
+      ];
+    }
     case 'stone': return [form('crown', 1.05, .74, .81, b), p(a, .26, .31, .16, .28, .22, .26, 'crown')];
     case 'seed': return [p(a, 0, .26, 0, .48, .3, .85, 'sphere'), p(ivory, 0, .42, 0, .045, .04, .58)];
     case 'crate': return [form('box', 1.3, .83, .92), p(bark, 0, .45, 0, 1.34, .13, .97), p(ivory, 0, .86, 0, .62, .06, .62)];
@@ -109,8 +133,9 @@ export function model(name: string, a: number, b: number): Piece[] {
       const broken = name === 'wreck';
       const color = big ? (broken ? b : a) : long ? a : ivory;
       return [
-        p(bark, 0, .24, 0, 1.93, .48, big ? .86 : .67, 'hull'),
-        p(ivory, 0, .47, 0, 1.46, .085, .55, 'hull'),
+        p(bark, 0, .24, 0, 1.93, .48, big ? .86 : .67, 'ship'),
+        p(ivory, 0, .47, 0, 1.76, .085, big ? .73 : .57, 'ship'),
+        ...[-1, 1].map(side => p(bark, -.09, .57, side * (big ? .34 : .27), 1.35, .085, .055)),
         ...mast(big ? -.39 : .03, big ? 1.54 : 1.21, color),
         ...(big ? mast(.42, broken ? .66 : 1.27, color) : []),
         ...(long ? [-1, 1].flatMap(z => [-.58, -.26, .12, .47].map(x => p(a, x, .49, z * .33, .2, .2, .105, 'sphere'))) : []),
@@ -119,10 +144,18 @@ export function model(name: string, a: number, b: number): Piece[] {
     }
     case 'cargo': case 'breaker': {
       const ice = name === 'breaker';
-      return [p(a, 0, .23, 0, 1.94, .46, .88, 'hull'),
-        p(metal, 0, .43, 0, 1.7, .075, .74, 'hull'),
+      return [p(0xa94c49, 0, .12, 0, 1.91, .24, .82, 'ship'),
+        p(a, 0, .32, 0, 1.94, .23, .88, 'ship'),
+        p(metal, 0, .435, 0, 1.84, .075, .79, 'ship'),
         p(white, -.57, .67, 0, .44, .51, .57), p(glass, -.56, .85, 0, .49, .14, .59),
         p(metal, -.64, 1.04, 0, .13, .26, .15, 'pole'),
+        animated(p(white, -.64, 1.18, 0, .3, .05, .06), 'spin'),
+        ...[-1,1].flatMap(side => [
+          p(ivory, -.10, .51, side * .39, 1.48, .032, .027),
+          ...[-.72,-.24,.23,.64].map(x => p(ivory, x, .471, side * .39, .031, .10, .031)),
+          ...[-.66,-.49].map(x => p(metal, x, .851, side * .30, .029, .14, .018)),
+          p(side > 0 ? 0x7cdd9b : 0xff7674, -.4, .93, side * .32, .045, .045, .045, 'sphere'),
+        ]),
         ...(ice ? [p(white, .46, .55, 0, .83, .16, .49, 'hull')] :
           [-.15, .22, .58].flatMap((x,i) => [-.16,.16].map(z => p(i % 2 ? a : b, x, .63, z, .35, .37, .28)))),
       ];
@@ -246,9 +279,26 @@ export function model(name: string, a: number, b: number): Piece[] {
       ...[-.62,-.31,0,.31,.62].map(x => p(glass, x, .65, 0, .022, .022, .91, 'box', 0, -.3)),
     ];
     case 'drone': return [
-      p(a, 0, .55, 0, .77, .28, .59, 'sphere'),
-      ...[-1,1].flatMap(x => [-1,1].map(z => p(metal, x * .53, .59, z * .38, .46, .08, .46, 'ring'))),
-      p(glass, .2, .54, 0, .27, .15, .27, 'sphere'),
+      p(a, 0, .55, 0, .79, .29, .59, 'sphere'),
+      ...[-1,1].flatMap(x => [-1,1].flatMap(z => [
+        p(metal, x * .28, .56, z * .22, .64, .07, .105, 'box', -x * z * .65),
+        p(metal, x * .53, .59, z * .38, .46, .08, .46, 'ring'),
+        animated(p(ivory, x * .53, .604, z * .38, .32, .022, .052), 'spin', x * z),
+        p(0x66e7ef, x * .53, .56, z * .38, .125, .08, .125, 'sphere'),
+      ])),
+      p(metal, .38, .48, 0, .25, .21, .26, 'sphere'),
+      p(glass, .49, .49, 0, .085, .125, .125, 'sphere'),
+    ];
+    case 'shuttle': return [
+      p(ivory, 0, .42, 0, 1.92, .49, .8, 'ship'),
+      p(a, -.17, .38, 0, 1.33, .13, 1.6, 'ship'),
+      p(glass, .29, .67, 0, .58, .27, .45, 'sphere'),
+      ...[-1, 1].flatMap(side => [
+        p(metal, -.49, .43, side * .5, .34, .72, .36, 'pole', 0, 0, Math.PI / 2),
+        p(0x53ddf8, -.86, .43, side * .5, .19, .18, .25, 'sphere'),
+        p(b, -.47, .72, side * .52, .41, .54, .11, 'pyramid'),
+        p(a, .02, .52, side * .32, .73, .055, .063),
+      ]),
     ];
     case 'dome': return [
       form('pole', 1.7, .32, 1.7, metal), p(glass, 0, .38, 0, 1.63, 1.18, 1.63, 'sphere'),
@@ -263,6 +313,9 @@ export function model(name: string, a: number, b: number): Piece[] {
       form('pole', 1.15, .52, 1.15, b), p(metal, 0, .72, 0, 1.4, .55, 1.37, 'pole'),
       p(a, 0, .76, 0, 1.91, .14, 1.91, 'ring'), p(glass, 0, 1.04, 0, .76, .46, .76, 'sphere'),
       p(a, 0, 1.44, 0, .09, .53, .09, 'pole'),
+      animated(p(ivory, 0, 1.73, 0, .55, .13, .17, 'sphere'), 'spin'),
+      ...[0,1,2,3,4,5].map(i => p(glass, .67 * Math.cos(i * Math.PI / 3), .89,
+        .67 * Math.sin(i * Math.PI / 3), .22, .14, .11, 'box', -i * Math.PI / 3)),
     ];
     case 'neon': return [
       form('box', 1.16, 2.05, 1.05, b), p(metal, 0, 1.84, 0, .8, 1.27, .77),

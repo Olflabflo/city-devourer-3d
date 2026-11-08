@@ -2,11 +2,16 @@ import * as T from 'three';
 import { Grid } from './rules.ts';
 import { harbor, type Landscape } from './landscapes.ts';
 import { mapScale, planWorld, type Patrol } from './world-layout.ts';
-import type { Piece } from './world-models.ts';
+import { model, type Piece } from './world-models.ts';
 
 export const block = 30;
 const sectorSize = block * mapScale;
 export const extent = sectorSize * 7 / 2;
+const shipOutline = new T.Shape([
+  new T.Vector2(-.50, -.29), new T.Vector2(-.38, -.50), new T.Vector2(.12, -.48),
+  new T.Vector2(.36, -.33), new T.Vector2(.50, 0), new T.Vector2(.36, .33),
+  new T.Vector2(.12, .48), new T.Vector2(-.38, .50), new T.Vector2(-.50, .29),
+]);
 const shapes = {
   box: new T.BoxGeometry(),
   crown: new T.IcosahedronGeometry(1, 0), pole: new T.CylinderGeometry(.5, .5, 1, 7),
@@ -17,11 +22,13 @@ const shapes = {
   ring: new T.TorusGeometry(.39, .11, 6, 32).rotateX(-Math.PI / 2),
   sphere: new T.SphereGeometry(.5, 10, 6),
   hull: new T.CylinderGeometry(.57, .38, 1, 6).rotateY(Math.PI / 6),
+  ship: new T.ExtrudeGeometry(shipOutline, { depth:1, bevelEnabled:false }).rotateX(-Math.PI / 2).translate(0, -.5, 0),
 };
 type Shape = keyof typeof shapes;
 type Part = {
   shape: Shape; color: number; local: T.Matrix4;
   mesh?: T.InstancedMesh; slot?: number;
+  motion?: Piece['motion'];
 };
 type Traffic = { axis: 'x' | 'z'; center: number; span: number; speed: number };
 export type Prop = {
@@ -30,6 +37,7 @@ export type Prop = {
 };
 const pivot = new T.Object3D();
 const scratch = new T.Matrix4();
+const animatedPart = new T.Matrix4();
 const asphalt = 0x455667;
 const cement = 0xc8b6a0;
 const grass = 0x76a76d;
@@ -51,7 +59,7 @@ function toPart(p: Piece): Part {
   pivot.rotation.set(p.pitch, p.yaw, p.roll);
   pivot.scale.set(p.w, p.h, p.d);
   pivot.updateMatrix();
-  return { color: p.color, shape: p.shape, local: pivot.matrix.clone() };
+  return { color: p.color, shape: p.shape, local: pivot.matrix.clone(), motion:p.motion };
 }
 
 function sizedParts(pieces: Piece[], footprint: number) {
@@ -75,25 +83,39 @@ function sizedParts(pieces: Piece[], footprint: number) {
   return parts;
 }
 
-export function pose(prop: Prop, x = prop.x, y = prop.y, z = prop.z, pitch = 0, roll = 0, scale = 1) {
+export function pose(prop: Prop, x = prop.x, y = prop.y, z = prop.z, pitch = 0, roll = 0, scale = 1, time?: number) {
   pivot.position.set(x, y, z);
   pivot.rotation.set(pitch, prop.angle, roll);
   pivot.scale.setScalar(scale);
   pivot.updateMatrix();
   for (const p of prop.parts) {
     const mesh = p.mesh!;
-    mesh.setMatrixAt(p.slot!, scratch.multiplyMatrices(pivot.matrix, p.local));
+    let local = p.local;
+    if (p.motion && time !== undefined) {
+      const {kind,phase} = p.motion;
+      const px = p.local.elements[12], py = p.local.elements[13], pz = p.local.elements[14];
+      if (kind === 'spin') animatedPart.makeRotationY(time * (phase ? 21 * phase : 3.2));
+      else animatedPart.makeRotationZ(Math.sin(time * 11) * phase * .52);
+      animatedPart.multiply(p.local);
+      animatedPart.setPosition(px + (kind === 'swing' ? Math.sin(time * 11) * phase * py * .25 : 0),py,pz);
+      local = animatedPart;
+    }
+    mesh.setMatrixAt(p.slot!, scratch.multiplyMatrices(pivot.matrix, local));
     mesh.instanceMatrix.needsUpdate = true;
   }
 }
 
 function building(w: number, h: number, d: number, color: number, tower: boolean) {
-  const parts = [
+  const parts: Part[] = [
     part(0xa99588, 0, .18, 0, w + .3, .36, d + .3),
     part(color, 0, h / 2, 0, w, h, d),
     part(dark, 0, h + .12, 0, w + .15, .24, d + .15),
     part(0x798e94, w * .15, h + .5, 0, w * .25, .85, d * .35),
     part(dark, 0, .75, d / 2 + .02, .9, 1.5, .08),
+    part(0xe0b67c, 0, 1.65, d / 2 + .2, 1.65, .14, .55),
+    part(glass, w * .27, .76, d / 2 + .04, w * .23, .9, .07),
+    ...[-1,0,1].map(i => part(i ? 0xf3dca4 : color, i * .43, 1.735,
+      d / 2 + .27, .41, .07, .49)),
   ];
   const floors = Math.max(1, Math.floor((h - 1.5) / 1.55));
   for (let i = 0; i < floors; i++) {
@@ -107,7 +129,10 @@ function building(w: number, h: number, d: number, color: number, tower: boolean
       if (!tower) parts.push(part(color, 0, y, side * (d / 2 + .055), .24, .56, .065));
     }
   }
-  if (tower) parts.push(part(warm, w * .15, h + 1.48, 0, .14, 1.25, .14, 'pole'));
+  if (tower) {
+    parts.push(part(warm, w * .15, h + 1.48, 0, .14, 1.25, .14, 'pole'));
+    parts.push({ ...part(0xf2dca0, w * .15, h + 2.03, 0, .83, .11, .18), motion:{kind:'spin',phase:0} });
+  }
   return parts;
 }
 
@@ -124,12 +149,6 @@ function bench() {
     part(0xb76f49, 0, .53, 0, 1.68, .15, .55),
     part(0xc28657, 0, .87, -.25, 1.68, .37, .11),
     ...[-.62, .62].map(x => part(dark, x, .27, 0, .12, .55, .45)),
-  ];
-}
-function person(color: number) {
-  return [
-    part(dark, -.11, .25, 0, .13, .5, .18), part(dark, .11, .25, 0, .13, .5, .18),
-    part(color, 0, .73, 0, .38, .52, .24), part(0xe1ad81, 0, 1.13, 0, .19, .2, .19, 'crown'),
   ];
 }
 function car(truck: boolean, color: number) {
@@ -159,6 +178,7 @@ export class City {
 
   private readonly start = new Map<Prop, [number, number, number]>();
   private travel = 0;
+  private readonly animatedScenery: Prop[] = [];
 
   constructor(shadows: boolean, landscape: Landscape = harbor) {
     const ground = this.ground = new T.Mesh(new T.PlaneGeometry(270, 270), new T.MeshLambertMaterial({
@@ -173,7 +193,7 @@ export class City {
         vec2 grainCell = floor(surface * 10.0);
         float grain = fract(sin(dot(grainCell, vec2(12.9898, 78.233))) * 43758.5453);
         float shade = sin(surface.x * .24 + sin(surface.y * .31)) * .025;
-        diffuseColor.rgb *= .96 + grain * .08 + shade;`);
+        diffuseColor.rgb *= .98 + grain * .04 + shade;`);
     };
     ground.rotation.x = -Math.PI / 2;
     ground.receiveShadow = shadows;
@@ -207,6 +227,7 @@ export class City {
             this.start.set(prop, [prop.x, prop.z, prop.angle]);
           }
           if (traffic || patrol) this.traffic.push(prop);
+          else if (parts.some(p => p.motion)) this.animatedScenery.push(prop);
         };
         const park = (ix + iz * 2) % 4 === 0;
         const paving = [part(cement, 0, .08, 0, 21.2, .16, 21.2)];
@@ -255,10 +276,10 @@ export class City {
           ]);
           add(side * 7.5, 9.3, 1, .37, 6, [part(0x446c69, 0, .33, 0, .52, .66, .52, 'pole'), part(dark, 0, .68, 0, .56, .12, .56, 'pole')]);
           const x = side * 9;
-          add(x, 2.1, 2, .34, 13, person(color()), random() * 6, undefined,
+          add(x, 2.1, 2, .43, 13, sizedParts(model(side > 0 ? 'woman' : 'walker', color(), dark), .43), random() * 6, undefined,
             {x:cx + x,z:cz - .7,rx:.45,rz:2.8,speed:.73,phase:0,stride:true});
           if (ix === 0 && iz === 0) {
-            add(side * 4, 7.3, 2, .34, 13, person(side < 0 ? 0xe9b95e : 0x60a8ab), 0, undefined,
+            add(side * 4, 7.3, 2, .43, 13, sizedParts(model(side < 0 ? 'woman' : 'walker', 0xe9b95e, dark), .43), 0, undefined,
               {x:side * 4,z:5,rx:2,rz:2.3,speed:.81,phase:0,stride:true});
           }
         }
@@ -269,6 +290,15 @@ export class City {
             part(0xb27a4c, 0, .19, 0, .49, .36, .39),
             part(0xffd992, 0, .38, 0, .19, .04, .4),
           ]);
+        }
+        for (const side of [-1, 1]) {
+          for (let i = 0; i < 3; i++) {
+            add(side * 9.85, -5.1 + i * 3.65, 1, .31, 4, [
+              part(0xb8795d, 0, .21, 0, .42, .39, .42, 'pole'),
+              part(0x63966b, 0, .46, 0, .44, .34, .44, 'sphere'),
+              part(i % 2 ? 0xffba78 : 0xf19ba7, .05, .61, 0, .18, .19, .18, 'sphere'),
+            ]);
+          }
         }
         if (ix === 0 && iz === 0) {
           for (let i = 1; i <= 8; i++) {
@@ -300,6 +330,7 @@ export class City {
       chunks.set(key, chunk);
       this.objects.push(prop);
       if (patrol) this.traffic.push(prop);
+      else if (prop.parts.some(p => p.motion)) this.animatedScenery.push(prop);
       this.start.set(prop, [x,z,yaw]);
     }
     for (const chunk of chunks.values()) this.batch(chunk, shadows);
@@ -354,6 +385,9 @@ export class City {
   }
   drive(dt: number, unavailable: ReadonlySet<Prop>) {
     this.travel += dt;
+    for (const prop of this.animatedScenery) {
+      if (!unavailable.has(prop)) pose(prop, prop.x, prop.y, prop.z, 0, 0, 1, this.travel);
+    }
     for (const car of this.traffic) {
       if (unavailable.has(car)) continue;
       if (car.patrol) {
@@ -362,8 +396,9 @@ export class City {
         const sin = Math.sin(t), cos = Math.cos(t);
         this.grid.move(car, route.x + route.rx * sin, route.z + route.rz * cos);
         car.angle = Math.atan2(route.rz * sin, route.rx * cos);
-        const step = route.stride ? Math.sin(this.travel * 13 + route.phase) : 0;
-        pose(car, car.x, car.y + Math.abs(step) * .05, car.z, 0, step * .13);
+        const step = route.stride ? Math.sin(this.travel * 11 + route.phase) : Math.sin(this.travel * 2.5 + route.phase);
+        pose(car, car.x, car.y + Math.abs(step) * (route.stride ? .07 : .12) + (route.hover ?? 0),
+          car.z, 0, step * (route.stride ? .06 : .1), 1, this.travel + route.phase);
         continue;
       }
       const route = car.traffic!;
@@ -374,4 +409,6 @@ export class City {
     }
   }
 }
+
+
 
