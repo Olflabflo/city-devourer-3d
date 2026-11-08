@@ -1,5 +1,8 @@
 import * as T from 'three';
-import { Grid } from './rules';
+import { Grid } from './rules.ts';
+import { harbor, type Landscape } from './landscapes.ts';
+import { planWorld } from './world-layout.ts';
+import type { Piece } from './world-models.ts';
 
 export const block = 30;
 export const extent = 105;
@@ -7,6 +10,12 @@ const shapes = {
   box: new T.BoxGeometry(),
   crown: new T.IcosahedronGeometry(1, 0), pole: new T.CylinderGeometry(.5, .5, 1, 7),
   wheel: new T.CylinderGeometry(.5, .5, 1, 10).rotateX(Math.PI / 2),
+  cone: new T.ConeGeometry(.5, 1, 9),
+  pyramid: new T.ConeGeometry(Math.SQRT1_2, 1, 4).rotateY(Math.PI / 4),
+  gem: new T.OctahedronGeometry(.5),
+  ring: new T.TorusGeometry(.39, .11, 6, 32).rotateX(-Math.PI / 2),
+  sphere: new T.SphereGeometry(.5, 10, 6),
+  hull: new T.CylinderGeometry(.57, .38, 1, 6).rotateY(Math.PI / 6),
 };
 type Shape = keyof typeof shapes;
 type Part = {
@@ -34,6 +43,35 @@ function part(color: number, x: number, y: number, z: number, w: number, h: numb
   pivot.scale.set(w, h, d);
   pivot.updateMatrix();
   return { color, shape, local: pivot.matrix.clone() };
+}
+
+function toPart(p: Piece): Part {
+  pivot.position.set(p.x, p.y, p.z);
+  pivot.rotation.set(p.pitch, p.yaw, p.roll);
+  pivot.scale.set(p.w, p.h, p.d);
+  pivot.updateMatrix();
+  return { color: p.color, shape: p.shape, local: pivot.matrix.clone() };
+}
+
+function sizedParts(pieces: Piece[], footprint: number) {
+  const parts = pieces.map(toPart);
+  let radius = 0, floor = Infinity;
+  const bounds = new T.Box3();
+  for (const p of parts) {
+    const geometry = shapes[p.shape];
+    if (!geometry.boundingBox) geometry.computeBoundingBox();
+    bounds.copy(geometry.boundingBox!).applyMatrix4(p.local);
+    radius = Math.max(radius, Math.hypot(
+      Math.max(Math.abs(bounds.min.x), Math.abs(bounds.max.x)),
+      Math.max(Math.abs(bounds.min.z), Math.abs(bounds.max.z)),
+    ));
+    floor = Math.min(floor, bounds.min.y);
+  }
+  const scale = footprint / radius;
+  const transform = new T.Matrix4().makeScale(scale, scale, scale);
+  transform.setPosition(0, -floor * scale, 0);
+  for (const p of parts) p.local.premultiply(transform);
+  return parts;
 }
 
 export function pose(prop: Prop, x = prop.x, y = prop.y, z = prop.z, pitch = 0, roll = 0, scale = 1) {
@@ -114,14 +152,22 @@ export class City {
   readonly objects: Prop[] = [];
   readonly traffic: Prop[] = [];
   private readonly material = new T.MeshLambertMaterial();
+  private readonly ground: T.Mesh<T.PlaneGeometry, T.MeshLambertMaterial>;
 
   private readonly start = new Map<Prop, [number, number]>();
 
-  constructor(shadows: boolean) {
-    const ground = new T.Mesh(new T.PlaneGeometry(270, 270), new T.MeshLambertMaterial({color: asphalt}));
+  constructor(shadows: boolean, landscape: Landscape = harbor) {
+    const ground = this.ground = new T.Mesh(new T.PlaneGeometry(270, 270), new T.MeshLambertMaterial({
+      color: landscape.id === harbor.id ? asphalt : landscape.ground,
+    }));
     ground.rotation.x = -Math.PI / 2;
     ground.receiveShadow = shadows;
     this.root.add(ground);
+    if (landscape.id !== harbor.id) {
+      this.buildLandscape(landscape, shadows);
+      this.reset();
+      return;
+    }
     let seed = 1337;
     const random = () => {
       seed = (Math.imul(seed, 1664525) + 1013904223) >>> 0;
@@ -211,6 +257,23 @@ export class City {
     this.reset();
   }
 
+  private buildLandscape(landscape: Landscape, shadows: boolean) {
+    const { scenery, objects } = planWorld(landscape);
+    this.batch([{ x:0, z:0, y:0, angle:0, tier:0, footprint:0, points:0, parts:scenery.map(toPart) }], false);
+    const chunks = new Map<string, Prop[]>();
+    for (const object of objects) {
+      const { x, z, tier, points, radius, yaw, pieces } = object;
+      const prop = { x, z, tier, points, footprint:radius, angle:yaw, y:.083, parts:sizedParts(pieces, radius) };
+      const key = `${Math.floor(x / 36)},${Math.floor(z / 36)}`;
+      const chunk = chunks.get(key) ?? [];
+      chunk.push(prop);
+      chunks.set(key, chunk);
+      this.objects.push(prop);
+      this.start.set(prop, [x,z]);
+    }
+    for (const chunk of chunks.values()) this.batch(chunk, shadows);
+  }
+
   private batch(lot: Prop[], shadows: boolean) {
     for (const shape of Object.keys(shapes) as Shape[]) {
       const entries = lot.flatMap(prop => prop.parts.filter(p => p.shape === shape));
@@ -246,6 +309,17 @@ export class City {
       pose(prop);
     }
   }
+
+  dispose() {
+    this.root.removeFromParent();
+    for (const child of this.root.children) {
+      if (child instanceof T.InstancedMesh) child.dispose();
+    }
+    this.root.clear();
+    this.material.dispose();
+    this.ground.geometry.dispose();
+    this.ground.material.dispose();
+  }
   drive(dt: number, unavailable: ReadonlySet<Prop>) {
     for (const car of this.traffic) {
       if (unavailable.has(car)) continue;
@@ -257,3 +331,4 @@ export class City {
     }
   }
 }
+

@@ -4,6 +4,8 @@ import { Input } from './input';
 import { Audio, read, save } from './audio';
 import { fits, stage, targetRadius, thresholds, timeLeft, type Mode } from './rules';
 import { View } from './view';
+import { harbor, landscapeById, landscapes } from './landscapes';
+import { spawn } from './world-layout';
 import './style.css';
 
 function id<T extends HTMLElement = HTMLElement>(name: string) {
@@ -19,17 +21,26 @@ const sound = id<HTMLButtonElement>('sound');
 const menu = id<HTMLButtonElement>('menu');
 const pad = id('joystick');
 const clock = id('clock');
-const titles = ['Kleinteile', 'Bänke, Menschen und kleine Bäume', 'Autos und große Bäume', 'Lastwagen und kleine Häuser', 'Mehrstöckige Häuser', 'Hochhäuser'];
+const landscape = id<HTMLSelectElement>('landscape');
 const format = new Intl.NumberFormat('de-AT');
 const audio = new Audio();
 type State = 'menu' | 'active' | 'paused' | 'over';
 type Falling = { prop: Prop; x: number; z: number; age: number; duration: number };
 
 function init(view: View) {
-  const city = new City(view.shadows);
+  for (const group of new Set(landscapes.map(world => world.group))) {
+    const options = document.createElement('optgroup');
+    options.label = group;
+    for (const world of landscapes.filter(world => world.group === group)) {
+      options.append(new Option(world.name, world.id));
+    }
+    landscape.append(options);
+  }
+  let map = harbor;
+  let city = new City(view.shadows, map);
   view.scene.add(city.root);
   const input = new Input(pad, togglePause);
-  const player = new Vector2(0, 11.25);
+  const player = new Vector2(...spawn);
   const velocity = new Vector2();
   const desired = new Vector2();
   const falling: Falling[] = [];
@@ -39,7 +50,7 @@ function init(view: View) {
   let score = 0, swallowed = 0, elapsed = 0, radius = targetRadius(0), shake = 0, boost = 0;
   let last = performance.now();
   let lastHud = -1;
-  const key = () => `devourer.best.${mode}`;
+  const key = () => map === harbor ? `devourer.best.${mode}` : `devourer.best.${map.id}.${mode}`;
   const best = () => Number(read(key())) || 0;
   const record = () => id('record').textContent = `BESTLEISTUNG   ${format.format(best())} PUNKTE`;
 
@@ -58,6 +69,7 @@ function init(view: View) {
     pad.dataset.active = String(next === 'active');
     pad.hidden = next !== 'active' || !input.touch;
     modes.hidden = next !== 'menu';
+    id('landscape-picker').hidden = next !== 'menu';
     menu.hidden = next === 'menu';
     id('controls').hidden = next !== 'menu';
     input.clear();
@@ -70,9 +82,10 @@ function init(view: View) {
     }
     const title = id('title');
     if (next === 'menu') title.innerHTML = 'CITY<br>DEVOURER<span>.</span>';
-    else title.textContent = next === 'paused' ? 'PAUSE' : swallowed === city.objects.length ? 'STADT VERSCHLUCKT' : 'ZEIT ABGELAUFEN';
-    id('summary').textContent = next === 'menu' ? 'Ein Riss unter der Stadt. Alles, was hineinpasst, gehört dir.' :
+    else title.textContent = next === 'paused' ? 'PAUSE' : swallowed === city.objects.length ? 'WELT VERSCHLUCKT' : 'ZEIT ABGELAUFEN';
+    id('summary').textContent = next === 'menu' ? (map === harbor ? 'Ein Riss unter der Stadt. Alles, was hineinpasst, gehört dir.' : map.description) :
       `${format.format(score)} Punkte · ${swallowed} von ${city.objects.length} Objekten · Stufe ${stage(score)}`;
+    id('district').textContent = map.name;
     play.innerHTML = `${next === 'paused' ? 'WEITERSPIELEN' : next === 'over' ? 'NEUSTART' : 'SPIELEN'} <span>↗</span>`;
     record();
     if (next !== 'menu') play.focus();
@@ -85,7 +98,7 @@ function init(view: View) {
 
   function start() {
     city.reset();
-    player.set(0, 11.25);
+    player.set(...spawn);
     falling.length = 0;
     unavailable.clear();
     score = swallowed = elapsed = shake = boost = 0;
@@ -103,7 +116,7 @@ function init(view: View) {
     id('level').textContent = `STUFE ${level}`;
     id('size').textContent = `Ø ${(radius * 2).toFixed(1).replace('.', ',')} m`;
     id<HTMLProgressElement>('progress').value = next === undefined ? 1 : (score - start) / (next - start);
-    id('target').textContent = next === undefined ? `STADT: ${swallowed} / ${city.objects.length}` : `ALS NÄCHSTES · ${titles[level]}`;
+    id('target').textContent = next === undefined ? `OBJEKTE: ${swallowed} / ${city.objects.length}` : `ALS NÄCHSTES · ${map.goals[level]}`;
     id('score').textContent = format.format(score);
     const seconds = Math.ceil(timeLeft(mode, elapsed));
     id('clock-label').textContent = mode === 'timed' ? 'ZEIT' : 'MODUS';
@@ -154,7 +167,7 @@ function init(view: View) {
       popup(id('float'), `+${format.format(gained)}`);
       if (nextLevel > level) {
         boost = 1;
-        popup(id('toast'), `STUFE ${nextLevel} · ${titles[nextLevel - 1]}`);
+        popup(id('toast'), `STUFE ${nextLevel} · ${map.goals[nextLevel - 1]}`);
       }
     }
     shake *= Math.exp(-6 * dt);
@@ -183,6 +196,20 @@ function init(view: View) {
     requestAnimationFrame(frame);
   }
 
+  landscape.onchange = () => {
+    if (state !== 'menu') return;
+    const selected = landscapeById(landscape.value);
+    landscape.value = selected.id;
+    if (selected === map) return;
+    const next = new City(view.shadows, selected);
+    city.dispose();
+    city = next;
+    map = selected;
+    view.scene.add(city.root);
+    view.setSky(map.sky);
+    view.reset();
+    setState('menu');
+  };
   modes.querySelectorAll<HTMLButtonElement>('button').forEach(button => {
     button.onclick = () => {
       mode = button.dataset.mode as Mode;
@@ -199,7 +226,7 @@ function init(view: View) {
     city.reset();
     unavailable.clear();
     falling.length = 0;
-    player.set(0, 11.25);
+    player.set(...spawn);
     radius = targetRadius(0);
     boost = 0;
     setState('menu');
@@ -235,6 +262,7 @@ try {
   id('title').textContent = 'STARTFEHLER';
   id('summary').textContent = 'Die 3D-Stadt konnte nicht geladen werden. Prüfe, ob WebGL 2 und Hardwarebeschleunigung im Browser verfügbar sind.';
   modes.hidden = true;
+  id('landscape-picker').hidden = true;
   play.hidden = true;
 }
 

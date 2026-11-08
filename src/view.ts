@@ -68,6 +68,12 @@ export class View {
   }
 
   private readonly sun: T.DirectionalLight;
+
+  setSky(color: number) {
+    (this.scene.background as T.Color).setHex(color);
+    (this.scene.fog as T.Fog).color.setHex(color);
+    this.renderer.shadowMap.needsUpdate = true;
+  }
   private resize = () => {
     this.camera.aspect = innerWidth / innerHeight;
     this.camera.updateProjectionMatrix();
