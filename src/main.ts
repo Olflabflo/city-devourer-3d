@@ -22,6 +22,7 @@ const menu = id<HTMLButtonElement>('menu');
 const pad = id('joystick');
 const clock = id('clock');
 const landscape = id<HTMLSelectElement>('landscape');
+const bootStatus = id('boot-status');
 const format = new Intl.NumberFormat('de-AT');
 const audio = new Audio();
 type State = 'menu' | 'active' | 'paused' | 'over';
@@ -253,6 +254,8 @@ function init(view: View) {
   soundLabel();
   setState('menu');
   requestAnimationFrame(frame);
+  play.disabled = false;
+  bootStatus.hidden = true;
 }
 
 try {
@@ -260,7 +263,9 @@ try {
 } catch (error) {
   console.error(error);
   id('title').textContent = 'STARTFEHLER';
-  id('summary').textContent = 'Die 3D-Stadt konnte nicht geladen werden. Prüfe, ob WebGL 2 und Hardwarebeschleunigung im Browser verfügbar sind.';
+  id('summary').hidden = true;
+  bootStatus.dataset.state = 'failed';
+  bootStatus.textContent = 'Die 3D-Grafik konnte nicht gestartet werden. Prüfe, ob WebGL 2 und Hardwarebeschleunigung im Browser verfügbar sind, und lade die Seite neu.';
   modes.hidden = true;
   id('landscape-picker').hidden = true;
   play.hidden = true;

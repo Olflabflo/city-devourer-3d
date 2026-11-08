@@ -28,3 +28,11 @@ City Devourer 3D ist ein statisch ausgeliefertes WebGL-Arcadespiel für Desktop 
 **M6 · Geräteabnahme (vorgeschlagen).** Die Desktop- und Mobilprüfung lief in Chromium. Die tatsächliche Touch-Bedienung und Darstellung auf einem Android-Gerät bleiben offen.
 
 **WP-05 · Android-Spielrunde.** Auf einem Android-Smartphone mit Chrome die öffentliche URL öffnen. Im Hochformat den Ameisenbau auswählen, im Zeitmodus per Joystick Stufe 2 erreichen, pausieren und fortsetzen. Nach Ablauf der Runde prüfen, dass der Rekord einen Reload übersteht. Erfolg heißt, dass die Karte lädt, der Joystick ohne Seitenscrollen reagiert und Timer, Pause und Rekord wie beschrieben funktionieren. Gerät, Browser-Version und Auffälligkeiten im Prüfprotokoll festhalten. Voraussetzung ist ein verfügbares Android-Gerät.
+
+## Prüfpaket WP-06 · Spielstart und Deploy Preview
+
+- Gemeldet: Das Menü erscheint, der Klick auf „Spielen“ bleibt ohne Reaktion. Der genaue Ladefehler auf dem betroffenen Gerät ist offen.
+- Reproduktion: Wird das Spielmodul im Browser absichtlich blockiert, ließ der bisherige Stand einen aktiven, aber funktionslosen Button stehen. Die Produktions-URL lieferte HTML, JavaScript und CSS im Test jeweils mit HTTP 200.
+- Änderung: „Spielen“ ist bis zur Initialisierung deaktiviert. Fehler beim Laden des Spielcodes oder beim Aufbau der WebGL-Szene erhalten eine eigene Meldung.
+- Prüfung: Sieben Logiktests und der Build bestanden. Der Browsercheck mit blockiertem Modul sowie der normale Rundenstart mit echter Browserzeit bestanden lokal.
+- Freigabe: Der Nutzer hat GitHub-PR und Netlify Deploy Preview beauftragt. Zuerst die Vorschau im betroffenen Browser prüfen. Für die Übernahme nach main und Produktion ist eine separate Freigabe erforderlich.
