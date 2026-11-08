@@ -2,7 +2,7 @@ import { Vector2, MathUtils } from 'three';
 import { City, extent, pose, type Prop } from './city';
 import { Input } from './input';
 import { Audio, read, save } from './audio';
-import { fits, stage, targetRadius, thresholds, timeLeft, type Mode } from './rules';
+import { canFracture, fits, maximumRadius, stage, targetRadius, thresholds, timeLeft, type Mode } from './rules';
 import { View } from './view';
 import { harbor, landscapeById, landscapes } from './landscapes';
 import { spawn } from './world-layout';
@@ -19,9 +19,11 @@ const play = id<HTMLButtonElement>('play');
 const pause = id<HTMLButtonElement>('pause');
 const sound = id<HTMLButtonElement>('sound');
 const menu = id<HTMLButtonElement>('menu');
+const leave = id<HTMLButtonElement>('leave');
 const pad = id('joystick');
 const clock = id('clock');
 const landscape = id<HTMLSelectElement>('landscape');
+const bootStatus = id('boot-status');
 const format = new Intl.NumberFormat('de-AT');
 const audio = new Audio();
 type State = 'menu' | 'active' | 'paused' | 'over';
@@ -43,6 +45,8 @@ function init(view: View) {
   const player = new Vector2(...spawn);
   const velocity = new Vector2();
   const desired = new Vector2();
+  const clickTarget = new Vector2();
+  let followingClick = false;
   const falling: Falling[] = [];
   const unavailable = new Set<Prop>();
   let state: State = 'menu';
@@ -66,6 +70,8 @@ function init(view: View) {
     overlay.hidden = next === 'active';
     hud.hidden = next !== 'active';
     pause.hidden = next !== 'active';
+    leave.hidden = next !== 'active';
+    followingClick = false;
     pad.dataset.active = String(next === 'active');
     pad.hidden = next !== 'active' || !input.touch;
     modes.hidden = next !== 'menu';
@@ -82,8 +88,8 @@ function init(view: View) {
     }
     const title = id('title');
     if (next === 'menu') title.innerHTML = 'CITY<br>DEVOURER<span>.</span>';
-    else title.textContent = next === 'paused' ? 'PAUSE' : swallowed === city.objects.length ? 'WELT VERSCHLUCKT' : 'ZEIT ABGELAUFEN';
-    id('summary').textContent = next === 'menu' ? (map === harbor ? 'Ein Riss unter der Stadt. Alles, was hineinpasst, gehört dir.' : map.description) :
+    else title.textContent = next === 'paused' ? 'PAUSE' : swallowed === city.objects.length ? 'ALLES EINGESAMMELT' : 'ZEIT ABGELAUFEN';
+    id('summary').textContent = next === 'menu' ? (map === harbor ? 'Lenke die Anomalie durch die Karte und sammle, was in ihren Horizont passt.' : map.description) :
       `${format.format(score)} Punkte · ${swallowed} von ${city.objects.length} Objekten · Stufe ${stage(score)}`;
     id('district').textContent = map.name;
     play.innerHTML = `${next === 'paused' ? 'WEITERSPIELEN' : next === 'over' ? 'NEUSTART' : 'SPIELEN'} <span>↗</span>`;
@@ -116,7 +122,8 @@ function init(view: View) {
     id('level').textContent = `STUFE ${level}`;
     id('size').textContent = `Ø ${(radius * 2).toFixed(1).replace('.', ',')} m`;
     id<HTMLProgressElement>('progress').value = next === undefined ? 1 : (score - start) / (next - start);
-    id('target').textContent = next === undefined ? `OBJEKTE: ${swallowed} / ${city.objects.length}` : `ALS NÄCHSTES · ${map.goals[level]}`;
+    id('target').textContent = next === undefined ? `MAXIMUM · ${swallowed} / ${city.objects.length} OBJEKTE` :
+      `NÄCHSTE GRÖSSE · ${map.goals[level] ?? 'GROSSE WAHRZEICHEN'}`;
     id('score').textContent = format.format(score);
     const seconds = Math.ceil(timeLeft(mode, elapsed));
     id('clock-label').textContent = mode === 'timed' ? 'ZEIT' : 'MODUS';
@@ -127,19 +134,45 @@ function init(view: View) {
   function simulate(dt: number) {
     city.drive(dt, unavailable);
     const axis = input.read();
-    const speed = 10.5 + radius * .58;
+    const speed = 8.2 + Math.min(radius, 8) * .32;
     // Match the ground projection of the camera's right and down directions.
     desired.set(.885 * axis.x + .465 * axis.y, -.465 * axis.x + .885 * axis.y).multiplyScalar(speed);
-    velocity.lerp(desired, 1 - Math.exp(-13 * dt));
+    if (axis.lengthSq()) followingClick = false;
+    if (followingClick) {
+      desired.copy(clickTarget).sub(player);
+      const remaining = desired.length();
+      if (remaining < .22) {
+        followingClick = false;
+        desired.set(0, 0);
+      } else {
+        desired.setLength(Math.min(speed, remaining * 4.5));
+      }
+    }
+    velocity.lerp(desired, 1 - Math.exp(-(axis.lengthSq() ? 7.5 : 12) * dt));
     player.addScaledVector(velocity, dt).clampScalar(-extent, extent);
-    radius = MathUtils.lerp(radius, targetRadius(score), 1 - Math.exp(-4.8 * dt));
+    const nextRadius = targetRadius(score);
+    radius = MathUtils.lerp(radius, nextRadius, 1 - Math.exp(-4.8 * dt));
+    if (nextRadius - radius < .005) radius = nextRadius;
     const level = stage(score);
+    const fractureQueue: Prop[] = [];
+    if (radius >= maximumRadius) {
+      for (const prop of city.objects) {
+        if (unavailable.has(prop)) continue;
+        const distance = (prop.x - player.x) ** 2 + (prop.z - player.y) ** 2;
+        if (canFracture(score, radius, prop.footprint, distance)) fractureQueue.push(prop);
+      }
+    }
+    for (const prop of fractureQueue) {
+      if (!city.breakApart(prop)) continue;
+      unavailable.add(prop);
+      view.burst(prop.x,prop.z,true);
+    }
     for (const prop of city.grid.near(player.x, player.y, radius)) {
       const distance = (prop.x - player.x) ** 2 + (prop.z - player.y) ** 2;
-      if (!fits(level, prop.tier, radius, prop.footprint, distance)) continue;
+      if (!fits(radius, prop.footprint, distance)) continue;
       city.grid.remove(prop);
       unavailable.add(prop);
-      falling.push({ prop, x: prop.x, z: prop.z, age: 0, duration: .51 + prop.tier * .09 });
+      falling.push({ prop, x: prop.x, z: prop.z, age: 0, duration: prop.building ? 1.35 : .51 + prop.tier * .09 });
     }
     let gained = 0;
     for (let i = falling.length - 1; i >= 0; i--) {
@@ -147,15 +180,19 @@ function init(view: View) {
       const { prop } = entry;
       entry.age += dt;
       const t = Math.min(1, entry.age / entry.duration);
-      const pull = 1 - (1 - t) ** 2;
+      const progress = prop.building ? MathUtils.smoothstep(t,.27,1) : t;
+      const pull = 1 - (1 - progress) ** 2;
       const x = MathUtils.lerp(entry.x, player.x, pull);
       const z = MathUtils.lerp(entry.z, player.y, pull);
-      const y = prop.y - (prop.footprint * 1.7 + .9) * t ** 2;
-      pose(prop, x, y, z, t * 1.5, Math.sin(t * 9) * .28 + t, (1 - t ** 1.75));
+      const y = prop.y + Math.sin(progress * Math.PI) * (prop.building ? 0 : .36)
+        - (prop.footprint * .58 + .35) * progress ** 2;
+      const collapse = prop.building ? MathUtils.smoothstep(t,.07,.59) : 0;
+      pose(prop, x, y, z, progress * .5, Math.sin(progress * Math.PI) * .22, 1 - progress ** 1.35, undefined, collapse);
       if (t < 1) continue;
       falling.splice(i, 1);
-      gained += prop.points;
-      swallowed++;
+      const result = city.finishPickup(prop);
+      gained += result.points;
+      swallowed += result.count;
       view.burst(x, z, prop.tier >= 4);
       if (prop.tier >= 4) shake = Math.min(.64, .22 + .06 * prop.tier);
     }
@@ -167,7 +204,7 @@ function init(view: View) {
       popup(id('float'), `+${format.format(gained)}`);
       if (nextLevel > level) {
         boost = 1;
-        popup(id('toast'), `STUFE ${nextLevel} · ${map.goals[nextLevel - 1]}`);
+        popup(id('toast'), `STUFE ${nextLevel} · ${map.goals[nextLevel - 1] ?? 'MAXIMALE GRÖSSE'}`);
       }
     }
     shake *= Math.exp(-6 * dt);
@@ -222,7 +259,7 @@ function init(view: View) {
     if (state === 'paused') setState('active');
     else start();
   };
-  menu.onclick = () => {
+  function returnToMenu() {
     city.reset();
     unavailable.clear();
     falling.length = 0;
@@ -230,7 +267,14 @@ function init(view: View) {
     radius = targetRadius(0);
     boost = 0;
     setState('menu');
-  };
+    play.focus();
+  }
+  menu.onclick = leave.onclick = returnToMenu;
+  view.renderer.domElement.addEventListener('pointerdown', event => {
+    if (state !== 'active' || event.pointerType !== 'mouse' || event.button !== 0) return;
+    followingClick = view.groundPoint(event.clientX, event.clientY, clickTarget);
+    clickTarget.clampScalar(-extent, extent);
+  });
   pause.onclick = togglePause;
   function soundLabel() {
     sound.textContent = audio.enabled ? 'TON AN' : 'TON AUS';
@@ -253,6 +297,8 @@ function init(view: View) {
   soundLabel();
   setState('menu');
   requestAnimationFrame(frame);
+  play.disabled = false;
+  bootStatus.hidden = true;
 }
 
 try {
@@ -260,9 +306,13 @@ try {
 } catch (error) {
   console.error(error);
   id('title').textContent = 'STARTFEHLER';
-  id('summary').textContent = 'Die 3D-Stadt konnte nicht geladen werden. Prüfe, ob WebGL 2 und Hardwarebeschleunigung im Browser verfügbar sind.';
+  id('summary').hidden = true;
+  bootStatus.dataset.state = 'failed';
+  bootStatus.textContent = 'Die 3D-Grafik konnte nicht gestartet werden. Prüfe, ob WebGL 2 und Hardwarebeschleunigung im Browser verfügbar sind, und lade die Seite neu.';
   modes.hidden = true;
   id('landscape-picker').hidden = true;
   play.hidden = true;
 }
+
+
 

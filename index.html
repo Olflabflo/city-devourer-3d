@@ -1,13 +1,35 @@
 <!doctype html>
-<html lang="de"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover"><meta name="theme-color" content="#131a24"><meta name="description" content="Ein 3D-Arcadespiel im Hafenviertel."><link rel="icon" href="/rift.svg"><title>City Devourer 3D</title></head>
+<html lang="de"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover"><meta name="theme-color" content="#131a24"><meta name="description" content="Ein 3D-Arcadespiel im Hafenviertel."><link rel="icon" href="/rift.svg"><title>City Devourer 3D</title>
+<script>
+  function reportStartupFailure() {
+    const status = document.getElementById('boot-status');
+    if (status && !status.hidden && status.dataset.state === 'loading') {
+      status.dataset.state = 'failed';
+      status.textContent = 'Der Spielcode konnte nicht geladen werden. Lade die Seite neu und prüfe, ob JavaScript für diese Seite erlaubt ist.';
+    }
+  }
+  window.addEventListener('error', event => {
+    if (event.target instanceof HTMLScriptElement && event.target.type === 'module') {
+      if (document.readyState === 'loading') {
+        document.addEventListener('DOMContentLoaded', reportStartupFailure, { once: true });
+      } else {
+        reportStartupFailure();
+      }
+    }
+  }, true);
+  window.setTimeout(reportStartupFailure, 15000);
+</script></head>
 <body>
 <div id="world"></div><div id="shade"></div>
-<header><div class="brand"><b>◉</b> CITY DEVOURER <em>3D</em></div><div class="actions"><button id="sound" aria-label="Sound umschalten" aria-pressed="false">TON AN</button><button id="pause" hidden>PAUSE</button></div></header>
+<header><div class="brand"><b>◉</b> CITY DEVOURER <em>3D</em></div><div class="actions"><button id="sound" aria-label="Sound umschalten" aria-pressed="false">TON AN</button><button id="pause" hidden>PAUSE</button><button id="leave" hidden aria-label="Runde abbrechen und zum Hauptmenü">MENÜ</button></div></header>
 <div id="hud" hidden><div class="readout"><div><small>PUNKTE</small><strong id="score">0</strong></div><div><small id="clock-label">ZEIT</small><strong id="clock">2:00</strong></div></div><div class="growth"><div><strong id="level">STUFE 1</strong><span id="size"></span></div><progress id="progress" max="1" value="0" aria-label="Wachstum"></progress><small id="target"></small></div></div>
 <div id="joystick" hidden aria-label="Touch-Joystick"><i></i></div><div id="toast" role="status"></div><div id="float" aria-hidden="true"></div>
-<main id="overlay"><section id="panel"><div class="eyebrow">● &nbsp; <span id="district">Hafenviertel</span>  /  ARCADE</div><h1 id="title">CITY<br>DEVOURER<span>.</span></h1><p id="summary">Ein Riss unter der Stadt. Alles, was hineinpasst, gehört dir.</p>
+<main id="overlay"><section id="panel"><div class="eyebrow">● &nbsp; <span id="district">Hafenviertel</span>  /  ARCADE</div><h1 id="title">CITY<br>DEVOURER<span>.</span></h1><p id="summary">Lenke die Anomalie durch die Karte und sammle, was in ihren Horizont passt.</p>
 <div id="landscape-picker"><label for="landscape">LANDSCHAFT · 30 KARTEN</label><select id="landscape"></select></div>
 <div id="modes" role="group" aria-label="Spielmodus"><button data-mode="timed" aria-pressed="true"><small>01 / 120 SEKUNDEN</small><b>Zeitmodus</b></button><button data-mode="endless" aria-pressed="false"><small>02 / OHNE LIMIT</small><b>Endlosmodus</b></button></div>
-<div id="record"></div><button class="primary" id="play">SPIELEN <span>↗</span></button><button id="menu" hidden>ZUM HAUPTMENÜ</button><p class="controls" id="controls"><kbd>WASD</kbd> oder <kbd>↑ ↓ ← →</kbd> · Touch-Joystick</p>
+<div id="record"></div><p id="boot-status" data-state="loading" role="status">Spiel wird geladen …</p><noscript><p>Zum Spielen muss JavaScript aktiviert sein.</p></noscript><button class="primary" id="play" disabled>SPIELEN <span>↗</span></button><button id="menu" hidden>ZUM HAUPTMENÜ</button><p class="controls" id="controls"><kbd>WASD</kbd> oder <kbd>↑ ↓ ← →</kbd> · Mausklick · Touch-Joystick</p>
 </section></main><script type="module" src="/src/main.ts"></script></body></html>
+
+
+
 

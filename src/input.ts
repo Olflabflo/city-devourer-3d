@@ -58,9 +58,11 @@ export class Input {
 
   read() {
     const held = (a: string, b: string) => Number(this.keys.has(a) || this.keys.has(b));
+    const length = this.stick.length();
+    const strength = length > .1 ? ((length - .1) / .9) ** 1.45 / length : 0;
     return this.value.set(
-      this.stick.x + held('KeyD', 'ArrowRight') - held('KeyA', 'ArrowLeft'),
-      this.stick.y + held('KeyS', 'ArrowDown') - held('KeyW', 'ArrowUp'),
+      this.stick.x * strength + held('KeyD', 'ArrowRight') - held('KeyA', 'ArrowLeft'),
+      this.stick.y * strength + held('KeyS', 'ArrowDown') - held('KeyW', 'ArrowUp'),
     ).clampLength(0, 1);
   }
 }

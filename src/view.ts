@@ -1,6 +1,8 @@
 import * as T from 'three';
 
 const holeShader = new T.ShaderMaterial({
+  transparent: true,
+  depthWrite: false,
   uniforms: { time: { value: 0 }, boost: { value: 0 } },
   vertexShader: `varying vec2 at;
     void main(){ at = position.xy; gl_Position = projectionMatrix * modelViewMatrix * vec4(position,1.0); }`,
@@ -8,12 +10,22 @@ const holeShader = new T.ShaderMaterial({
     void main() {
       float r = length(at);
       float angle = atan(at.y, at.x);
-      float pulse = .5 + .5 * sin(angle * 7.0 + time * 3.0 - r * 18.0);
-      float rim = smoothstep(.87,.97,r) * (1.0-smoothstep(.983,1.0,r));
-      float wall = smoothstep(.65,.94,r) * (1.0 - smoothstep(.94,.98,r));
-      vec3 col = vec3(.004,.007,.014) + vec3(.038,.065,.095)*wall*(.5+.5*pulse);
-      col += rim * mix(vec3(.08,.30,.22),vec3(.72,1.0,.37),.48 + .35*pulse + .17*boost);
-      gl_FragColor = vec4(col,1.0);
+      float disk = smoothstep(.96, 1.025, r) * (1.0 - smoothstep(1.08, 1.48, r));
+      float flow = .52 + .22 * sin(6.0 * angle + r * 63.0 - time * 3.8)
+                       + .18 * sin(11.0 * angle - r * 39.0 - time * 5.5);
+      float lens = exp(-pow((r - 1.012) * 79.0, 2.0));
+      float halo = exp(-max(0.0, r - 1.02) * 8.5) * (1.0 - smoothstep(1.33, 1.65, r));
+      float spiralPhase = 5.0 * angle + 12.0 * log(max(r, .8)) + time * 3.2;
+      float streaks = pow(.5 + .5 * cos(spiralPhase), 12.0);
+      streaks *= smoothstep(1.03, 1.18, r) * (1.0 - smoothstep(1.43, 2.35, r));
+      streaks *= .19 + .18 * sin(r * 13.0 + time * 5.0 + angle * 3.0);
+      float hotSide = .68 + .32 * cos(angle - 1.0);
+      vec3 fire = mix(vec3(.49,.31,.66), vec3(1.0,.70,.42), clamp(flow * hotSide + boost * .2, 0.0, 1.0));
+      vec3 glow = mix(vec3(.41,.26,.58), fire, clamp(disk * 1.5 + lens, 0.0, 1.0));
+      float opacity = max(1.0 - smoothstep(.99, 1.012, r), disk * (.55 + .38 * flow));
+      opacity = max(opacity, max(lens, max(halo * .33, streaks)));
+      vec3 col = mix(vec3(.004,.002,.013), glow, smoothstep(.973, 1.015, r));
+      gl_FragColor = vec4(col,opacity);
     }`,
 });
 
@@ -21,7 +33,7 @@ export class View {
   readonly scene = new T.Scene();
   readonly camera = new T.PerspectiveCamera(42, innerWidth / innerHeight, .5, 380);
   readonly renderer: T.WebGLRenderer;
-  readonly hole = new T.Mesh(new T.CircleGeometry(1, 72), holeShader);
+  readonly hole = new T.Mesh(new T.CircleGeometry(2.35, 96), holeShader);
   readonly shadows = !matchMedia('(any-pointer: coarse)').matches;
   private readonly focus = new T.Vector3();
   private readonly offset = new T.Vector3(.41, .93, .78);
@@ -41,9 +53,9 @@ export class View {
     this.renderer.shadowMap.type = T.PCFShadowMap;
     this.renderer.shadowMap.autoUpdate = false;
     this.scene.background = new T.Color(0x9ac5c8);
-    this.scene.fog = new T.Fog(0x9ac5c8, 90, 245);
-    this.scene.add(new T.HemisphereLight(0xfff3dd, 0x8da9bf, 2.1));
-    const light = new T.DirectionalLight(0xffecd4, 2.1);
+    this.scene.fog = new T.Fog(0x9ac5c8, 72, 195);
+    this.scene.add(new T.HemisphereLight(0xfff3dd, 0x8794b5, 1.65));
+    const light = new T.DirectionalLight(0xffecd4, 2.65);
     light.position.set(-45, 85, 35);
     if (this.shadows) {
       light.castShadow = true;
@@ -59,7 +71,7 @@ export class View {
     this.hole.position.y = .225;
     this.scene.add(this.hole);
     this.particleGeometry.setAttribute('position', new T.BufferAttribute(this.positions, 3).setUsage(T.DynamicDrawUsage));
-    const cloud = new T.Points(this.particleGeometry, new T.PointsMaterial({ color: 0xc4ff82, size: .26, transparent: true, opacity: .88, depthWrite: false }));
+    const cloud = new T.Points(this.particleGeometry, new T.PointsMaterial({ color: 0xffba6d, size: .26, transparent: true, opacity: .88, depthWrite: false }));
     cloud.frustumCulled = false;
     this.scene.add(cloud);
     container.append(this.renderer.domElement);
@@ -68,6 +80,21 @@ export class View {
   }
 
   private readonly sun: T.DirectionalLight;
+  private readonly cursorRay = new T.Raycaster();
+  private readonly groundPlane = new T.Plane(new T.Vector3(0, 1, 0), 0);
+
+  groundPoint(clientX: number, clientY: number, destination: T.Vector2) {
+    const bounds = this.renderer.domElement.getBoundingClientRect();
+    const cursor = new T.Vector2(
+      (clientX - bounds.left) / bounds.width * 2 - 1,
+      1 - (clientY - bounds.top) / bounds.height * 2,
+    );
+    this.cursorRay.setFromCamera(cursor, this.camera);
+    const point = this.cursorRay.ray.intersectPlane(this.groundPlane, new T.Vector3());
+    if (!point) return false;
+    destination.set(point.x, point.z);
+    return true;
+  }
 
   setSky(color: number) {
     (this.scene.background as T.Color).setHex(color);

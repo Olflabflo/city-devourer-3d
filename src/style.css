@@ -4,3 +4,7 @@
 #landscape{width:100%;padding:8px 11px;min-height:40px;border:1px solid #ffffff45;border-radius:8px;color:inherit;background:#18212c;font:inherit;font-size:14px;font-weight:700;color-scheme:dark}
 #landscape:focus-visible{outline:3px solid var(--lime);outline-offset:2px}
 @media(max-height:590px){#overlay{touch-action:pan-y}#panel{padding:14px}h1{font-size:38px;margin:9px 0}#summary{margin:6px 0}#landscape-picker{margin:7px 0}}
+.primary:disabled,.primary:disabled:hover{opacity:.55;cursor:default;background:var(--lime)}
+#boot-status{font-size:13px;margin:9px 0}
+#boot-status[data-state=failed]{color:#ffd1b9}
+@media(max-width:440px){header .actions{gap:4px}header .actions button{padding:9px 7px;font-size:10px}header .brand{padding:9px 7px;font-size:10px}}
