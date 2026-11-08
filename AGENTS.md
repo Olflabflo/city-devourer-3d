@@ -7,3 +7,4 @@ Beginne bei [docs/project-state.md](docs/project-state.md). Dort stehen der aktu
 - Das Hafenviertel ist die Regressionsreferenz für Kartenwahl, Rundenzustand und vorhandene Rekorde. Modelle und Ton werden clientseitig erzeugt.
 - Halte private Skill-Installationen und Zugangsdaten aus öffentlichen Commits heraus.
 
+- Stelle Änderungen über einen separaten Branch und einen Pull Request bereit. Prüfe zuerst den zugehörigen Netlify Deploy Preview und verlinke PR und Vorschau in der Übergabe. Merge nach main und Produktionsdeploy erfordern eine separate Freigabe.
