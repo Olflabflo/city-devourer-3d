@@ -55,18 +55,18 @@ export function model(name: string, a: number, b: number): Piece[] {
       return [
         p(garment, 0, .66, 0, .35, .39, .43, 'sphere'),
         p(ancient ? ivory : b, 0, .5, 0, .32, .08, .4),
-        p(skin, .045, .96, 0, .34, .36, .34, robot ? 'box' : 'sphere'),
-        p(hair, -.025, 1.08, 0, .37, .16, .36, robot ? 'box' : 'sphere'),
+        p(skin, .045, .96, 0, .26, .29, .26, robot ? 'box' : 'sphere'),
+        p(hair, -.015, 1.06, 0, .29, .12, .28, robot ? 'box' : 'sphere'),
         ...(woman ? [p(hair, -.18, .91, 0, .19, .31, .25, 'sphere')] : []),
         ...[-1, 1].flatMap(side => [
-          p(robot ? 0x57f5f5 : metal, .202, .98, side * .075, .034, .038, .04, 'sphere'),
+          p(robot ? 0x57f5f5 : metal, .166, .98, side * .055, .026, .028, .03, 'sphere'),
           animated(p(ancient ? skin : metal, 0, .27, side * .12, .16, .44, .145), 'swing', side),
           animated(p(hair, .052, .105, side * .12, .235, .125, .15, 'sphere'), 'swing', side),
           animated(p(skin, .01, .59, side * .245, .125, .33, .12, 'sphere'), 'swing', -side),
         ]),
         ...(ancient && !woman ? [
-          p(ivory, .03, 1.07, 0, .38, .19, .36, 'sphere'),
-          p(0xb64443, -.025, 1.19, 0, .28, .16, .085, 'sphere'),
+          p(ivory, .03, 1.06, 0, .31, .15, .29, 'sphere'),
+          p(0xb64443, -.025, 1.17, 0, .24, .13, .075, 'sphere'),
           p(0xab5341, .01, .54, -.32, .28, .47, .105, 'sphere'),
           p(0xf1c873, .078, .55, -.373, .08, .09, .035, 'sphere'),
         ] : []),

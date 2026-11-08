@@ -87,9 +87,9 @@ function init(view: View) {
       return;
     }
     const title = id('title');
-    if (next === 'menu') title.innerHTML = 'WIRBEL<br>WELTEN<span>.</span>';
+    if (next === 'menu') title.innerHTML = 'CITY<br>DEVOURER<span>.</span>';
     else title.textContent = next === 'paused' ? 'PAUSE' : swallowed === city.objects.length ? 'ALLES EINGESAMMELT' : 'ZEIT ABGELAUFEN';
-    id('summary').textContent = next === 'menu' ? (map === harbor ? 'Sammle mit deinem Sternenwirbel, was hineinpasst. Alles landet im Sternenlager.' : map.description) :
+    id('summary').textContent = next === 'menu' ? (map === harbor ? 'Lenke die Anomalie durch die Karte und sammle, was in ihren Horizont passt.' : map.description) :
       `${format.format(score)} Punkte · ${swallowed} von ${city.objects.length} Objekten · Stufe ${stage(score)}`;
     id('district').textContent = map.name;
     play.innerHTML = `${next === 'paused' ? 'WEITERSPIELEN' : next === 'over' ? 'NEUSTART' : 'SPIELEN'} <span>↗</span>`;

@@ -52,10 +52,11 @@ City Devourer 3D ist ein statisch ausgeliefertes WebGL-Arcadespiel für Desktop 
 - Sanftere Beschleunigung, geringere Höchstgeschwindigkeit und eine feinere Joystick-Kennlinie erleichtern kleine Korrekturen.
 - Abnahme im bestehenden [Deploy Preview](https://deploy-preview-1--city-devourer-3d.netlify.app/).
 
-## WP-09 · Spielerische Wirbelwelten
+## WP-09 · Stilisierte Arcade-Grafik
 
-- Der Spieltitel im Preview lautet Wirbelwelten 3D. Der Sternenwirbel sammelt Figuren und Gegenstände mit einem sanften Schweben, Verkleinern und Funken.
+- Die Anomalie sammelt Figuren und Gegenstände mit einem sanften Schweben, Verkleinern und Funken.
 - Frauen, Männer, römische Figuren und Roboter haben unterschiedliche Silhouetten und schwingende Gliedmaßen. Schiffe haben spitze Rümpfe, Relings, Brückenfenster und drehende Radare. Drohnen haben drehende Rotoren. Shuttles schweben. Häuser erhielten Vordächer und Schaufenster, Türme bewegliche Dachantennen.
 - Alle Landschaften haben mindestens 300 sammelbare Objekte. In einer laufenden Runde führt „Menü“ zurück zur Kartenauswahl. Ein Mausklick auf den Boden setzt ein Fahrziel. Tastatur und Joystick übernehmen bei Eingabe wieder die Steuerung.
 - Abnahme über den [Netlify Deploy Preview](https://deploy-preview-1--city-devourer-3d.netlify.app/) zu [PR #1](https://github.com/Olflabflo/city-devourer-3d/pull/1).
-- Stilkorrektur: Ruhigere Materialien, weniger Fassaden- und Deckdetails sowie schwächere Sogspuren für eine minimalistischere Darstellung.
+- Stilkorrektur: Ruhigere Materialien, weniger Fassaden- und Deckdetails sowie schwächere Sogspuren für eine minimalistische Arcade-Grafik mit gedeckteren Farben und erwachsenen Figurenproportionen.
+
