@@ -86,3 +86,9 @@ Die Wachstumsstufen beginnen bei 0, 120, 350, 850, 1.700 und 3.000 Punkten. Zwis
 
 Befehle: gezielt `node --test --test-name-pattern ... src/worlds.test.ts` bzw. `src/rules.test.ts`, vollständig `npm test` und `npm run build`. Bereitstellung im [Netlify Deploy Preview](https://deploy-preview-1--city-devourer-3d.netlify.app/) zu [PR #1](https://github.com/Olflabflo/city-devourer-3d/pull/1).
 
+## WP-12 · Endspiel und geplante Kartenbezirke
+
+[Projektanalyse A1 mit Ergänzungen](sdd/wp-12-endspiel-und-kartenbezirke/01-projektanalyse.md) und [Spezifikation S1](sdd/wp-12-endspiel-und-kartenbezirke/02-spezifikation.md). A1 ist freigegeben. Design aktiv. S1 umfasst langsameres Wachstum, Zerfall, 30 Kartenprofile, Pflanzflächen und stimmige Objektgrößen. Baseline mit 16 Tests und erfolgreichem Build geprüft. S1 ist mit „go“ freigegeben. Die Umsetzung ist im Preview zur Abnahme vorgesehen. Die Nachweise und die Abweichung vom Balanceziel stehen im [Prüfprotokoll](sdd/wp-12-endspiel-und-kartenbezirke/03-pruefprotokoll.md).
+
+
+

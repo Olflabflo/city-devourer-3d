@@ -1,6 +1,7 @@
 import type { Landscape } from './landscapes.ts';
 import { model, piece, type Piece } from './world-models.ts';
 import { Grid } from './rules.ts';
+import { districts } from './districts.ts';
 
 type Point = readonly [number, number];
 type Layout = {
@@ -32,7 +33,8 @@ const layouts: Record<Exclude<Landscape['layout'], 'grid'>, Layout> = {
   tracks: { width:4, trails:[[[-92,2],[-45,2],[-31,-25],[38,-25],[57,2],[91,2]], [[-88,-57],[88,-57]], [[-84,75],[-52,52],[51,52],[89,75]]] },
   paper: { width:19, trails:[[[-91,4],[-62,-9],[-16,-3],[30,-28],[89,-12]], [[-91,-65],[-39,-65],[15,-81],[87,-61]], [[-90,52],[-31,62],[12,46],[88,65]]] },
   craters: { width:5, groundShape:'ring', trails:[[[-89,19],[-50,6],[-19,7],[15,-15],[89,-15]], [[-91,-64],[-46,-74],[16,-59],[88,-66]], [[-90,62],[-29,61],[14,77],[87,64]]] },
-  canyon: { width:16, trails:[[[-89,18],[-49,14],[-25,-11],[14,-17],[50,-7],[90,-32]], [[-84,-53],[-45,-69],[26,-62],[85,-75]], [[-86,72],[-23,58],[19,67],[88,42]]] },
+  canyon: { width:12, trails:[[[0,0],[0,49],[0,89]], [[0,0],[-39,22],[-81,43]],
+    [[0,0],[-43,-28],[-76,-57]], [[0,0],[39,-29],[79,-57]], [[0,0],[44,18],[87,38]]] },
   ring: { width:12, groundShape:'ring', trails:[[[-83,40],[-57,61],[0,71],[59,59],[83,29]], [[-85,-33],[-59,-61],[0,-71],[61,-59],[84,-32]], [[-82,0],[0,0],[83,0]]] },
   neon: { width:9, trails:[[[-95,-4],[92,-4]], [[-61,-90],[-61,89]], [[53,-89],[53,89]], [[-91,54],[92,54]]] },
   groves: { width:13, groundShape:'islands', trails:[[[-89,21],[-46,8],[-15,18],[22,-17],[58,-9],[90,-20]], [[-83,-65],[-36,-48],[13,-72],[64,-61],[89,-53]], [[-85,77],[-43,62],[12,74],[55,49],[90,76]]] },
@@ -43,9 +45,19 @@ export const mapScale = .8;
 const startZ = 11.25;
 export const spawn = [0, startZ * mapScale] as const;
 export type Patrol = { x: number; z: number; rx: number; rz: number; speed: number; phase: number; stride?: boolean; hover?: number };
-type ObjectPlan = { x: number; z: number; tier: number; radius: number; points: number; yaw: number; name: string; pieces: Piece[]; patrol?: Patrol };
-type WorldPlan = { scenery: Piece[]; objects: ObjectPlan[]; isLand(x: number, z: number): boolean };
-const radii = [.34, .83, 1.62, 2.92, 4.58, 7.25];
+type ObjectPlan = { x: number; z: number; tier: number; radius: number; points: number; yaw: number; name: string; pieces: Piece[]; patrol?: Patrol; landmark?: boolean };
+type WorldPlan = { scenery: Piece[]; objects: ObjectPlan[]; greenPlots: Piece[]; isLand(x: number, z: number): boolean };
+const modelSizes: readonly [number, string][] = [
+  [.29, 'seed drop clip screw nut shell starfish pencil fruit stone jar urn battery crop'],
+  [.49, 'barrel sack chest crate rope bollard lily shield urchin cup paper cloth panel cutlery signal beacon sign brick toy ice'],
+  [.72, 'planter ant beetle fish walker woman roman roman-woman robot coral solar wrench toolbox'],
+  [1.05, 'leaf palm fir crystal kelp column obelisk statue bench buoy supply keyboard basket'],
+  [1.55, 'handcart cart carriage rover train drone longboat sail arch stall flower root vise tug'],
+  [2.7, 'awning cabin stilt longhouse palazzo tower shuttle module dome airlock temple dune ridge'],
+  [4.3, 'cargo breaker galleon wreck crane arena peak iceberg banyan keep caravan station spires'],
+  [5.8, 'pyramid nest volcano neon'],
+];
+const footprintByModel = new Map(modelSizes.flatMap(([radius, names]) => names.split(' ').map(name => [name, radius] as const)));
 const points = [6, 14, 28, 52, 90, 220];
 const accentWhite = 0xf3ebd7;
 const riverBlue = 0x3b8398;
@@ -65,7 +77,7 @@ const trafficByWorld: Record<Exclude<Landscape['id'], 'harbor'>, readonly string
 };
 
 export const landActors = new Set(['walker','woman','roman','roman-woman','handcart','carriage','cart','rover','train']);
-export const waterActors = new Set(['sail','galleon','longboat','cargo','breaker','fish','wreck','buoy','coral','shell','lily','iceberg']);
+export const waterActors = new Set(['sail','galleon','longboat','cargo','breaker','fish','wreck','buoy','coral','shell','lily','iceberg','tug']);
 
 const extras: Record<Exclude<Landscape['id'], 'harbor'>, readonly string[][]> = {
   alps:[['stone','seed','sack'],['fir','barrel','planter'],['fir','cabin']],
@@ -104,7 +116,7 @@ const wetExtras: Partial<Record<Landscape['id'], readonly [readonly string[], re
   amazon:[['lily','leaf','crate'],['longboat']],
   arctic:[['ice','buoy'],['iceberg','breaker']],
   sail:[['buoy','rope','crate','barrel'],['sail','galleon','wreck']],
-  cargo:[['buoy','rope','crate'],['cargo']],
+  cargo:[['buoy','rope','crate'],['tug','cargo']],
   pirate:[['barrel','rope','chest','crate'],['longboat','sail','galleon','wreck']],
   reef:[['shell','starfish','urchin'],['coral','wreck','kelp']],
   venice:[['buoy','rope','crate'],['longboat']],
@@ -154,6 +166,7 @@ export function planWorld(world: Landscape): WorldPlan {
     return state / 4294967296;
   };
   const scenery: Piece[] = [];
+  const greenPlots: Piece[] = [];
   const land: Piece[] = [];
   const water: Piece[] = [];
   const walls: Piece[] = [];
@@ -178,6 +191,16 @@ export function planWorld(world: Landscape): WorldPlan {
   const trails = world.id === 'egypt'
     ? [[[-94,34],[-41,19],[-16,8],[21,3],[87,9]], ...layout.trails.slice(1)] as readonly (readonly Point[])[]
     : layout.trails;
+  if (world.id === 'cargo') {
+    for (const [x,z,w,d] of [[-43,31,39,28],[39,52,37,25],[35,-17,43,29]]) {
+      addSurface(piece(world.detail,x,.04,z,w,.064,d),land);
+    }
+    addSurface(strip(0x918985,[-25,34],[23,47],5.2,.09),land);
+    addSurface(strip(0x918985,[36,39],[35,-2],5.2,.09),land);
+  }
+  if (world.layout === 'fjord') {
+    for (const side of [-1,1]) addSurface(piece(world.detail,0,.026,side * 94,195,.032,19),land);
+  }
   for (const [route, trail] of trails.entries()) {
     for (let i = 1; i < trail.length; i++) {
       if (['fleet','reef','channel'].includes(world.layout)) {
@@ -206,25 +229,11 @@ export function planWorld(world: Landscape): WorldPlan {
       }
     }
   }
-  if (world.layout === 'valley' || world.layout === 'canyon' || world.layout === 'fjord') {
-    for (let x = -98; x <= 98; x += 23) {
-      for (const side of [-1, 1]) {
-        const z = side * (111 + random() * 9);
-        scenery.push(piece(world.detail, x, 3.6, z, 28, 11 + random() * 12, 25, 'cone', random()));
-        if (world.layout === 'valley') scenery.push(piece(0xe7f2f6, x, 11.7, z, 12, 10, 12, 'cone', .1));
-      }
-    }
-  }
   if (world.layout === 'courtyard') {
     scenery.push(piece(0xc7bba0, 0, .035, -21, 54, .03, 49));
-    for (const x of [-26,26]) addSurface(piece(world.detail, x, 1.45, -21, 2.8, 2.9, 48),walls);
-    addSurface(piece(world.detail, 0, 1.45, -45, 54, 2.9, 2.8),walls);
-    for (const x of [-16,16]) addSurface(piece(world.detail, x, 1.45, 3, 22, 2.9, 2.8),walls);
-    for (let i = -24; i <= 24; i += 4) {
-      scenery.push(piece(world.detail, i, 3.2, -45, 1.6, .65, 2.2));
-      if (Math.abs(i) > 5) scenery.push(piece(world.detail, i, 3.2, 3, 1.6, .65, 2.2));
-      for (const x of [-26,26]) scenery.push(piece(world.detail, x, 3.2, i - 21, 2.2, .65, 1.6));
-    }
+    for (const x of [-26,26]) walls.push(piece(world.detail, x, 1.45, -21, 2.8, 2.9, 48));
+    for (const x of [-16,16]) walls.push(piece(world.detail, x, 1.45, -45, 22, 2.9, 2.8));
+    for (const x of [-16,16]) walls.push(piece(world.detail, x, 1.45, 3, 22, 2.9, 2.8));
   }
 
   const objects: ObjectPlan[] = [];
@@ -246,22 +255,24 @@ export function planWorld(world: Landscape): WorldPlan {
     if (!local) throw new Error(`Missing land palette for ${world.name}`);
     return [local];
   };
-  const add = (x: number, z: number, tier: number, yaw = 0, name?: string, patrol?: Patrol) => {
-    const radius = radii[tier - 1];
+  const add = (x: number, z: number, tier: number, yaw = 0, name?: string, patrol?: Patrol, landmark = false) => {
     if (Math.abs(x) > 99 || Math.abs(z) > 99) return false;
     if (!name) {
       const options = alternatives(tier,x,z);
       name = options[(Math.round(Math.abs(x * 13 + z * 17))) % options.length];
     }
+    const size = footprintByModel.get(name);
+    if (size === undefined) throw new Error(`Missing footprint for ${name}`);
+    const radius = landmark ? 12.35 : size;
     if (name !== 'tower' && walls.some(wall => covers(wall,x,z,radius / mapScale))) return false;
     x *= mapScale;
     z *= mapScale;
-    for (const other of occupied.near(x,z,radius + radii[5] + .35)) {
+    for (const other of occupied.near(x,z,radius + 12.35 + .35)) {
       if ((x - other.x) ** 2 + (z - other.z) ** 2 < (radius + other.radius + .35) ** 2) return false;
     }
     if (patrol) patrol = { ...patrol, x:patrol.x * mapScale, z:patrol.z * mapScale,
       rx:patrol.rx * mapScale, rz:patrol.rz * mapScale };
-    const object = { x, z, tier, radius, yaw, name, points:points[tier - 1], patrol,
+    const object = { x, z, tier, radius, yaw, name, points:points[tier - 1], patrol, landmark,
       pieces:model(name, world.accent, world.detail) };
     objects.push(object);
     occupied.add(object);
@@ -275,11 +286,55 @@ export function planWorld(world: Landscape): WorldPlan {
     }))];
   for (const [x,z] of landmarkSites) {
     const needsWater = waterActors.has(landmark);
-    if (onLand(x,z) === needsWater || !add(x,z,6,.24,landmark)) continue;
+    if (onLand(x,z) === needsWater || !add(x,z,6,.24,landmark,undefined,true)) continue;
     if (waterMap && !needsWater) {
       addSurface(piece(world.detail,x,.055,z,23,.04,23, world.id === 'arctic' ? 'pole' : 'box'),land);
     }
     break;
+  }
+  for (const wall of walls) {
+    const longX = wall.w > wall.d;
+    const span = Math.max(wall.w,wall.d);
+    const crenels = [];
+    for (let offset = -span / 2 + 2; offset < span / 2; offset += 4) {
+      crenels.push(piece(world.detail,longX ? offset : 0,3.2,longX ? 0 : offset,
+        longX ? 1.6 : 2.2,.65,longX ? 2.2 : 1.6));
+    }
+    objects.push({x:wall.x * mapScale,z:wall.z * mapScale,tier:6,yaw:0,name:'wall',
+      radius:Math.hypot(wall.w,wall.d) * mapScale / 2,points:160,
+      pieces:[{...wall,x:0,z:0},...crenels]});
+  }
+  if (['valley','canyon','fjord'].includes(world.layout)) {
+    for (const side of [-1,1]) for (let x = -76; x <= 76; x += 38) {
+      const z = side * 92;
+      const mass = {x:x * mapScale,z:z * mapScale,tier:6,radius:x === 0 ? 15.8 : 8.2,points:x === 0 ? 340 : 115,
+        yaw:side * .7,name:'massif',pieces:model('massif',world.layout === 'valley' ? 0xe7f2f6 : world.accent,world.detail)};
+      objects.push(mass);
+      occupied.add(mass);
+    }
+  }
+  for (const [kind,x,z,yaw] of districts[id]) {
+    const isGarden = kind === 'green';
+    const platform = piece(isGarden ? (world.id === 'reef' ? 0x40856f : 0x688a52) :
+      kind === 'market' ? world.detail : 0x7c8079,x,.082,z,20,.04,18,'box',yaw);
+    if (waterMap && world.id !== 'reef') addSurface(platform,land);
+    else scenery.push(platform);
+    if (isGarden) greenPlots.push(platform);
+    const cos = Math.cos(yaw), sin = Math.sin(yaw);
+    if (isGarden && (world.group === 'Science-Fiction' || ['arctic','icebreaker'].includes(world.id))) {
+      for (const side of [-1,1]) {
+        scenery.push(piece(0x6da9a7,x + cos * side * 9.5,.37,z - sin * side * 9.5,.22,.56,18,'box',yaw));
+        scenery.push(piece(0x6da9a7,x + sin * side * 8.6,.37,z + cos * side * 8.6,20,.56,.22,'box',yaw));
+      }
+    }
+    for (let row = -2; row <= 2; row++) {
+      for (let col = -3; col <= 3; col++) {
+        const dx = col * 2.4, dz = row * 3;
+        const px = x + dx * cos + dz * sin, pz = z - dx * sin + dz * cos;
+        if (isGarden) add(px,pz,1,yaw,world.id === 'reef' ? 'kelp' : 'crop');
+        else if (Math.abs(col) < 3) add(px,pz,row % 2 === 0 ? 2 : 1,yaw);
+      }
+    }
   }
   if (world.layout === 'courtyard') {
     for (const x of [-26,26]) for (const z of [-45,3]) add(x,z,5,0,'tower');
@@ -377,7 +432,8 @@ export function planWorld(world: Landscape): WorldPlan {
       const trail = trails[attempt % trails.length];
       const along = sample(trail,.03 + random() * .94);
       const offset = (random() < .5 ? -1 : 1) * (layout.width / 2 + 3 + Math.floor(random() * 11) * 3.7 + random() * 1.7);
-      const x = along.x + along.dz * offset, z = along.z - along.dx * offset;
+      const x = attempt < 3500 ? along.x + along.dz * offset : (random() * 2 - 1) * 96;
+      const z = attempt < 3500 ? along.z - along.dx * offset : (random() * 2 - 1) * 96;
       if (Math.hypot(x, z - startZ) > 11 && add(x, z, tier, random() * 6.28)) count++;
     }
     if (count < minimum[tier - 1]) throw new Error(`Insufficient space in ${world.name} for tier ${tier}`);
@@ -385,6 +441,7 @@ export function planWorld(world: Landscape): WorldPlan {
   return {
     scenery: scenery.map(p => ({ ...p, x:p.x * mapScale, z:p.z * mapScale, w:p.w * mapScale, d:p.d * mapScale })),
     objects,
+    greenPlots,
     isLand: (x,z) => onLand(x / mapScale,z / mapScale),
   };
 }

@@ -33,6 +33,24 @@ export function model(name: string, a: number, b: number): Piece[] {
     return p(ivory, Math.cos(t) * radius, height / 2, Math.sin(t) * radius, .12, height, .12, 'pole');
   });
   switch (name) {
+    case 'crop': return [
+      p(0x50804e, 0, .4, 0, .09, .8, .09, 'pole'),
+      ...[-1,1].map(side => p(0x85aa64, side * .21, .48, 0, .48, .11, .3, 'sphere', 0, 0, side * .29)),
+      p(a, 0, .79, 0, .23, .21, .23, 'sphere'),
+    ];
+    case 'massif': return [
+      p(b, -.29, .62, -.08, 1.18, 1.42, 1.17, 'cone', .15),
+      p(b, .34, .4, .12, 1.13, .98, .91, 'cone', .38),
+      p(a, -.29, 1.01, -.08, .61, .62, .62, 'cone', .15),
+      p(b, .06, .38, -.32, .92, .89, .74, 'crown'),
+    ];
+    case 'tug': return [
+      p(0x384858, 0, .28, 0, 1.8, .56, .91, 'ship'),
+      p(a, 0, .51, 0, 1.7, .09, .81, 'ship'),
+      p(ivory, -.08, .77, 0, .67, .48, .57),
+      p(glass, .27, .85, 0, .065, .21, .5),
+      p(metal, -.29, 1.1, 0, .12, .28, .12, 'pole'),
+    ];
     case 'starfish': return [
       p(a, 0, .14, 0, .33, .19, .33, 'sphere'),
       ...Array.from({length:5}, (_,i) => {

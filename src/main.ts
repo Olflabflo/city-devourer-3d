@@ -2,7 +2,7 @@ import { Vector2, MathUtils } from 'three';
 import { City, extent, pose, type Prop } from './city';
 import { Input } from './input';
 import { Audio, read, save } from './audio';
-import { fits, stage, targetRadius, thresholds, timeLeft, type Mode } from './rules';
+import { canFracture, fits, maximumRadius, stage, targetRadius, thresholds, timeLeft, type Mode } from './rules';
 import { View } from './view';
 import { harbor, landscapeById, landscapes } from './landscapes';
 import { spawn } from './world-layout';
@@ -122,7 +122,8 @@ function init(view: View) {
     id('level').textContent = `STUFE ${level}`;
     id('size').textContent = `Ø ${(radius * 2).toFixed(1).replace('.', ',')} m`;
     id<HTMLProgressElement>('progress').value = next === undefined ? 1 : (score - start) / (next - start);
-    id('target').textContent = next === undefined ? `OBJEKTE: ${swallowed} / ${city.objects.length}` : `NÄCHSTE GRÖSSE · ${map.goals[level]}`;
+    id('target').textContent = next === undefined ? `MAXIMUM · ${swallowed} / ${city.objects.length} OBJEKTE` :
+      `NÄCHSTE GRÖSSE · ${map.goals[level] ?? 'GROSSE WAHRZEICHEN'}`;
     id('score').textContent = format.format(score);
     const seconds = Math.ceil(timeLeft(mode, elapsed));
     id('clock-label').textContent = mode === 'timed' ? 'ZEIT' : 'MODUS';
@@ -149,8 +150,23 @@ function init(view: View) {
     }
     velocity.lerp(desired, 1 - Math.exp(-(axis.lengthSq() ? 7.5 : 12) * dt));
     player.addScaledVector(velocity, dt).clampScalar(-extent, extent);
-    radius = MathUtils.lerp(radius, targetRadius(score), 1 - Math.exp(-4.8 * dt));
+    const nextRadius = targetRadius(score);
+    radius = MathUtils.lerp(radius, nextRadius, 1 - Math.exp(-4.8 * dt));
+    if (nextRadius - radius < .005) radius = nextRadius;
     const level = stage(score);
+    const fractureQueue: Prop[] = [];
+    if (radius >= maximumRadius) {
+      for (const prop of city.objects) {
+        if (unavailable.has(prop)) continue;
+        const distance = (prop.x - player.x) ** 2 + (prop.z - player.y) ** 2;
+        if (canFracture(score, radius, prop.footprint, distance)) fractureQueue.push(prop);
+      }
+    }
+    for (const prop of fractureQueue) {
+      if (!city.breakApart(prop)) continue;
+      unavailable.add(prop);
+      view.burst(prop.x,prop.z,true);
+    }
     for (const prop of city.grid.near(player.x, player.y, radius)) {
       const distance = (prop.x - player.x) ** 2 + (prop.z - player.y) ** 2;
       if (!fits(radius, prop.footprint, distance)) continue;
@@ -174,8 +190,9 @@ function init(view: View) {
       pose(prop, x, y, z, progress * .5, Math.sin(progress * Math.PI) * .22, 1 - progress ** 1.35, undefined, collapse);
       if (t < 1) continue;
       falling.splice(i, 1);
-      gained += prop.points;
-      swallowed++;
+      const result = city.finishPickup(prop);
+      gained += result.points;
+      swallowed += result.count;
       view.burst(x, z, prop.tier >= 4);
       if (prop.tier >= 4) shake = Math.min(.64, .22 + .06 * prop.tier);
     }
@@ -187,7 +204,7 @@ function init(view: View) {
       popup(id('float'), `+${format.format(gained)}`);
       if (nextLevel > level) {
         boost = 1;
-        popup(id('toast'), `STUFE ${nextLevel} · ${map.goals[nextLevel - 1]}`);
+        popup(id('toast'), `STUFE ${nextLevel} · ${map.goals[nextLevel - 1] ?? 'MAXIMALE GRÖSSE'}`);
       }
     }
     shake *= Math.exp(-6 * dt);

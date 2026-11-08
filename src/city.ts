@@ -1,5 +1,5 @@
 import * as T from 'three';
-import { Grid } from './rules.ts';
+import { Grid, maximumRadius } from './rules.ts';
 import { harbor, type Landscape } from './landscapes.ts';
 import { mapScale, planWorld, type Patrol } from './world-layout.ts';
 import { model, type Piece } from './world-models.ts';
@@ -41,7 +41,7 @@ const animatedPart = new T.Matrix4();
 const crushedPart = new T.Matrix4();
 const compression = new T.Matrix4();
 const structures = new Set(['awning','tower','keep','cabin','longhouse','stilt','palazzo','temple','arena',
-  'arch','pyramid','station','module','neon','dome','airlock','caravan','crane']);
+  'arch','pyramid','station','module','neon','dome','airlock','caravan','crane','wall','massif']);
 const asphalt = 0x455667;
 const cement = 0xc8b6a0;
 const grass = 0x76a76d;
@@ -192,6 +192,10 @@ export class City {
   private readonly start = new Map<Prop, [number, number, number]>();
   private travel = 0;
   private readonly animatedScenery: Prop[] = [];
+  private readonly fragments = new Map<Prop, { remaining: number }>();
+  private readonly completedFragments = new Set<Prop>();
+  private readonly broken = new Set<Prop>();
+  private readonly fragmentMeshes: T.InstancedMesh[] = [];
 
   constructor(shadows: boolean, landscape: Landscape = harbor) {
     const ground = this.ground = new T.Mesh(new T.PlaneGeometry(270, 270), new T.MeshLambertMaterial({
@@ -259,11 +263,17 @@ export class City {
             add(x, z, z < 0 ? 3 : 2, z < 0 ? 1.65 : .89, z < 0 ? 30 : 16, tree(z < 0));
             add(x, z * .44, 2, .9, 15, bench(), x > 0 ? Math.PI : 0);
           }
+          for (const x of [-3,0,3]) for (const z of [3.8,5.4,7]) {
+            add(x,z,1,.28,6,sizedParts(model('crop',0xe9c368,grass),.28));
+          }
           for (const x of [-6, 6]) add(x, -9.25, 3, 1.85, 22, [
             part(0x476555, 0, .83, 0, 3.5, .11, .13),
             part(0x476555, 0, .43, 0, 3.5, .1, .13),
             ...[-1.65, -.83, 0, .83, 1.65].map(v => part(0x476555, v, .55, 0, .1, 1.1, .12)),
           ]);
+        } else if (ix === 3 && iz === -3) {
+          add(-2,2,6,20,480,building(32,20,23,0x8398a3,true),0,undefined,undefined,true);
+          add(-10,-9,4,2.9,52,sizedParts(model('crane',0xe9b95e,dark),2.9),0,undefined,undefined,true);
         } else {
           const tier = Math.abs(ix) + Math.abs(iz) < 3 ? 4 : (ix - iz) % 3 === 0 ? 6 : 5;
           if (tier === 6) {
@@ -385,6 +395,15 @@ export class City {
   }
 
   reset() {
+    for (const prop of this.fragments.keys()) this.grid.remove(prop);
+    this.fragments.clear();
+    this.completedFragments.clear();
+    this.broken.clear();
+    for (const mesh of this.fragmentMeshes) {
+      mesh.removeFromParent();
+      mesh.dispose();
+    }
+    this.fragmentMeshes.length = 0;
     this.travel = 0;
     for (const prop of this.objects) {
       this.grid.remove(prop);
@@ -392,6 +411,46 @@ export class City {
       this.grid.add(prop);
       pose(prop);
     }
+  }
+
+  breakApart(prop: Prop) {
+    if (prop.footprint <= maximumRadius || this.broken.has(prop)) return false;
+    this.broken.add(prop);
+    this.grid.remove(prop);
+    pose(prop, prop.x, prop.y, prop.z, 0, 0, 0);
+    const count = 5;
+    const fragments: Prop[] = [];
+    const collection = { remaining: count };
+    for (let i = 0; i < count; i++) {
+      const angle = i * Math.PI * 2 / count;
+      const x = T.MathUtils.clamp(prop.x + Math.cos(angle) * 6.7, -extent + 2, extent - 2);
+      const z = T.MathUtils.clamp(prop.z + Math.sin(angle) * 6.7, -extent + 2, extent - 2);
+      const color = prop.parts[(i + 1) % prop.parts.length].color;
+      const item = {x,z,y:.12,angle,tier:3,footprint:2.45,
+        points:Math.floor(prop.points / count) + Number(i < prop.points % count),
+        parts:[
+          part(color, 0, .68, 0, 3.2, 1.42, 2.5, 'crown'),
+          part(color, -.58, .28, .22, 1.4, .63, 1.37, 'box', .31),
+        ]};
+      this.fragments.set(item,collection);
+      this.grid.add(item);
+      fragments.push(item);
+    }
+    const before = this.root.children.length;
+    this.batch(fragments, this.ground.receiveShadow);
+    for (const mesh of this.root.children.slice(before)) {
+      if (mesh instanceof T.InstancedMesh) this.fragmentMeshes.push(mesh);
+    }
+    return true;
+  }
+
+  finishPickup(prop: Prop) {
+    const collection = this.fragments.get(prop);
+    if (!collection) return {points:prop.points, count:1};
+    if (this.completedFragments.has(prop)) return {points:0, count:0};
+    this.completedFragments.add(prop);
+    collection.remaining--;
+    return {points:prop.points, count:Number(collection.remaining === 0)};
   }
 
   dispose() {

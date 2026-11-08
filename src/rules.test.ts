@@ -3,7 +3,7 @@ import test from 'node:test';
 import { fits, Grid, radii, stage, targetRadius, thresholds, timeLeft } from './rules.ts';
 
 test('growth stages start at their thresholds and fit representative objects', () => {
-  const sizes = [.44, 1.02, 2.2, 3.6, 5.3, 7.4];
+  const sizes = [.44, 1.02, 2.2, 3.6, 5.3, 7.4, 13.8];
   for (const [i, score] of thresholds.entries()) {
     assert.equal(stage(score), i + 1);
     assert.equal(targetRadius(score), radii[i]);
@@ -20,13 +20,13 @@ test('objects that fit are pulled in once their center enters the horizon', () =
 });
 
 test('growth needs a larger collection at every stage and does not jump at a threshold', () => {
-  const previous = [0, 45, 140, 345, 690, 1200];
+  const previous = [0, 120, 350, 850, 1700, 3000];
   const typicalSmallItem = 6;
-  assert.equal(stage(19 * typicalSmallItem), 1);
-  assert.equal(stage(20 * typicalSmallItem), 2);
+  assert.equal(stage(39 * typicalSmallItem), 1);
+  assert.equal(stage(40 * typicalSmallItem), 2);
   assert.ok(targetRadius(45) < 1.5);
   for (let i = 1; i < thresholds.length; i++) {
-    assert.ok(thresholds[i] >= 2 * previous[i]);
+    if (i < previous.length) assert.ok(thresholds[i] >= 2 * previous[i]);
     const radiusBefore = targetRadius(thresholds[i] - 1);
     assert.ok(targetRadius(thresholds[i]) - radiusBefore < .025);
   }
@@ -48,5 +48,15 @@ test('timed rounds expire at 120 seconds and endless rounds have no deadline', (
   assert.equal(timeLeft('timed', 119), 1);
   assert.equal(timeLeft('timed', 121), 0);
   assert.equal(timeLeft('endless', 121), Infinity);
+});
+
+test('WP-12 reaches a fixed maximum only at 15,500 points', () => {
+  assert.equal(stage(239), 1);
+  assert.equal(stage(240), 2);
+  assert.equal(stage(15499), 6);
+  assert.equal(stage(15500), 7);
+  assert.ok(targetRadius(15499) < 14.4);
+  assert.equal(targetRadius(15500), 14.4);
+  assert.equal(targetRadius(30000), 14.4);
 });
 

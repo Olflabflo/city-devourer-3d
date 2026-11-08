@@ -2,7 +2,8 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { City, extent, pose } from './city.ts';
 import { harbor, landscapes } from './landscapes.ts';
-import { fits, radii, thresholds } from './rules.ts';
+import { canFracture, fits, maximumRadius, targetRadius, thresholds } from './rules.ts';
+import { districts } from './districts.ts';
 import { InstancedMesh, Matrix4, Scene } from 'three';
 import { landActors, planWorld, spawn, waterActors } from './world-layout.ts';
 import { landscapeById } from './landscapes.ts';
@@ -46,7 +47,7 @@ test('models tied to a setting do not leak into incompatible worlds', () => {
 
 test('the Viking waterfront uses longhouses on land and longboats on water', () => {
   const plan = planWorld(landscapeById('viking'));
-  const land = plan.objects.filter(prop => prop.tier >= 4 && plan.isLand(prop.x, prop.z));
+  const land = plan.objects.filter(prop => prop.tier >= 4 && prop.name !== 'massif' && plan.isLand(prop.x, prop.z));
   const water = plan.objects.filter(prop => prop.tier >= 3 && !plan.isLand(prop.x, prop.z));
   assert.ok(land.some(prop => prop.name === 'longhouse'));
   assert.ok(land.every(prop => prop.name === 'longhouse'));
@@ -55,11 +56,21 @@ test('the Viking waterfront uses longhouses on land and longboats on water', () 
 });
 
 test('polar land sites use expedition equipment and shelter', () => {
-  const allowed = new Set(['ice','stone','cabin','station','crate','barrel','supply','beacon','rover','walker']);
+  const allowed = new Set(['ice','stone','cabin','station','crate','barrel','supply','beacon','rover','walker','crop']);
   const plan = planWorld(landscapeById('arctic'));
   const land = plan.objects.filter(prop => plan.isLand(prop.x, prop.z));
   assert.ok(land.some(prop => prop.name === 'station'));
   assert.deepEqual([...new Set(land.filter(prop => !allowed.has(prop.name)).map(prop => prop.name))], []);
+});
+
+test('object models keep a consistent scale even when their placement values differ', () => {
+  const plan = planWorld(landscapeById('viking'));
+  const homes = plan.objects.filter(prop => prop.name === 'longhouse' && !prop.landmark);
+  const barrels = plan.objects.filter(prop => prop.name === 'barrel');
+  assert.ok(homes.length > 1 && barrels.length > 1);
+  assert.equal(new Set(homes.map(prop => prop.radius)).size, 1);
+  assert.equal(new Set(barrels.map(prop => prop.radius)).size, 1);
+  assert.ok(homes[0].radius > barrels[0].radius * 4);
 });
 
 test('the landscapes generate distinct layouts with attainable growth chains', () => {
@@ -71,22 +82,64 @@ test('the landscapes generate distinct layouts with attainable growth chains', (
       const layout = objects.map(({x,z,tier}) => [x,z,tier].join(',')).join(';');
       assert.ok(!layouts.has(layout), `${world.name} must have a distinct layout`);
       layouts.add(layout);
-      for (const item of objects) {
-        assert.ok(fits(radii[item.tier - 1], item.footprint, 0), world.name);
+      let score = 0;
+      for (const item of [...objects].sort((a,b) => a.footprint - b.footprint)) {
         assert.ok(Math.abs(item.x) <= extent && Math.abs(item.z) <= extent, world.name);
+        if (item.footprint <= maximumRadius) {
+          assert.ok(fits(targetRadius(score),item.footprint,0), `${world.name}: growth must unlock ${item.footprint} at ${score}`);
+        } else {
+          assert.ok(canFracture(score, targetRadius(score), item.footprint, 0), `${world.name}: fracture target must be reachable`);
+        }
+        score += item.points;
       }
-      for (let tier = 1; tier < 6; tier++) {
-        const points = objects.filter(item => item.tier <= tier).reduce((sum, item) => sum + item.points, 0);
-        assert.ok(points >= thresholds[tier], `${world.name} must unlock tier ${tier + 1}`);
-      }
-      if (world !== harbor) {
-        assert.ok(objects.some(item => item.tier === 6), world.name);
-        assert.ok(objects.filter(item => item.tier === 1 && Math.hypot(item.x, item.z - spawn[1]) < 16)
-          .reduce((sum,item) => sum + item.points, 0) >= thresholds[1], world.name);
-      }
+      assert.ok(score >= thresholds[thresholds.length - 1], `${world.name}: maximum`);
+      assert.ok(objects.some(item => item.footprint > targetRadius(9800)), `${world.name}: late target`);
     } finally {
       map.dispose();
     }
+  }
+});
+
+test('every world has its own district profile and a planted area', () => {
+  assert.equal(new Set(Object.values(districts).map(JSON.stringify)).size, landscapes.length);
+  for (const world of landscapes.filter(map => map !== harbor)) {
+    const plan = planWorld(world);
+    const plot = plan.greenPlots[0];
+    assert.ok(plot, world.name);
+    assert.ok(plan.objects.filter(prop => (prop.name === 'crop' || prop.name === 'kelp') &&
+      Math.hypot(prop.x - plot.x * .8, prop.z - plot.z * .8) < 12).length >= 8, world.name);
+  }
+});
+
+test('oversized walls break once and their pieces award the original value and one completion', () => {
+  const world = new City(false, landscapeById('castle'));
+  try {
+    const wall = world.objects.find(prop => prop.footprint > maximumRadius)!;
+    assert.ok(wall);
+    assert.equal(canFracture(15499,maximumRadius,wall.footprint,0),false);
+    assert.equal(canFracture(15500,maximumRadius,wall.footprint,0),true);
+    const before = new Set(world.objects);
+    assert.equal(world.breakApart(wall),true);
+    assert.equal(world.breakApart(wall),false);
+    const inGrid = () => [...world.grid.near(wall.x,wall.z,25)];
+    const chunks = inGrid().filter(prop => !before.has(prop));
+    assert.equal(inGrid().includes(wall),false);
+    assert.equal(chunks.length,5);
+    let points = 0, count = 0;
+    for (const chunk of chunks) {
+      assert.ok(fits(maximumRadius,chunk.footprint,0));
+      const result = world.finishPickup(chunk);
+      points += result.points;
+      count += result.count;
+      assert.deepEqual(world.finishPickup(chunk),{points:0,count:0});
+    }
+    assert.equal(points,wall.points);
+    assert.equal(count,1);
+    world.reset();
+    assert.ok(inGrid().includes(wall));
+    assert.ok(inGrid().every(prop => before.has(prop)));
+  } finally {
+    world.dispose();
   }
 });
 

@@ -1,6 +1,7 @@
 export const duration = 120;
-export const thresholds = [0, 120, 350, 850, 1700, 3000];
-export const radii = [1.28, 2.05, 3.28, 5.1, 7.15, 10.2];
+export const thresholds = [0, 240, 850, 2250, 5100, 9800, 15500];
+export const radii = [1.28, 1.68, 2.4, 3.7, 5.65, 8.8, 14.4];
+export const maximumRadius = radii[radii.length - 1];
 export type Mode = 'timed' | 'endless';
 
 export function stage(score: number) {
@@ -11,13 +12,18 @@ export function stage(score: number) {
 export function targetRadius(score: number) {
   const index = stage(score) - 1;
   const next = thresholds[index + 1];
-  if (next === undefined) return radii[index] + 6 * (1 - Math.exp(-(score - thresholds[index]) / 6500));
+  if (next === undefined) return maximumRadius;
   const progress = (score - thresholds[index]) / (next - thresholds[index]);
   return radii[index] + (radii[index + 1] - radii[index]) * progress ** 1.65;
 }
 
 export function fits(radius: number, footprint: number, distanceSquared: number) {
   return footprint <= radius && distanceSquared <= (radius * .94) ** 2;
+}
+
+export function canFracture(score: number, radius: number, footprint: number, distanceSquared: number) {
+  if (score < thresholds[thresholds.length - 1] || radius < maximumRadius || footprint <= maximumRadius) return false;
+  return distanceSquared <= (footprint + radius * .72) ** 2;
 }
 
 export function timeLeft(mode: Mode, elapsed: number) {
