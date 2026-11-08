@@ -18,6 +18,20 @@ test('objects that fit are pulled in once their center enters the horizon', () =
   assert.equal(fits(2, 2.01, 0), false);
   assert.equal(fits(2, 1, 4), false);
 });
+
+test('growth needs a larger collection at every stage and does not jump at a threshold', () => {
+  const previous = [0, 45, 140, 345, 690, 1200];
+  const typicalSmallItem = 6;
+  assert.equal(stage(19 * typicalSmallItem), 1);
+  assert.equal(stage(20 * typicalSmallItem), 2);
+  assert.ok(targetRadius(45) < 1.5);
+  for (let i = 1; i < thresholds.length; i++) {
+    assert.ok(thresholds[i] >= 2 * previous[i]);
+    const radiusBefore = targetRadius(thresholds[i] - 1);
+    assert.ok(targetRadius(thresholds[i]) - radiusBefore < .025);
+  }
+  assert.ok(targetRadius(6000) < 13);
+});
 test('moving and swallowing objects updates spatial membership', () => {
   const grid = new Grid();
   const car = { x: -1, z: 0 };
@@ -35,3 +49,4 @@ test('timed rounds expire at 120 seconds and endless rounds have no deadline', (
   assert.equal(timeLeft('timed', 121), 0);
   assert.equal(timeLeft('endless', 121), Infinity);
 });
+

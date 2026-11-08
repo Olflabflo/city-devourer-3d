@@ -33,6 +33,25 @@ export function model(name: string, a: number, b: number): Piece[] {
     return p(ivory, Math.cos(t) * radius, height / 2, Math.sin(t) * radius, .12, height, .12, 'pole');
   });
   switch (name) {
+    case 'starfish': return [
+      p(a, 0, .14, 0, .33, .19, .33, 'sphere'),
+      ...Array.from({length:5}, (_,i) => {
+        const angle = i * Math.PI * .4;
+        return p(a, Math.sin(angle) * .22, .12, Math.cos(angle) * .22, .15, .13, .43, 'sphere', angle);
+      }),
+    ];
+    case 'urchin': return [
+      p(b, 0, .21, 0, .52, .39, .52, 'crown'),
+      ...Array.from({length:7}, (_,i) => {
+        const angle = i * Math.PI * 2 / 7;
+        return p(a, Math.sin(angle) * .23, .29, Math.cos(angle) * .23, .09, .36, .09, 'cone', angle, .8);
+      }),
+    ];
+    case 'kelp': return [
+      p(0x365b50, 0, .13, 0, .75, .24, .53, 'crown'),
+      ...[-1,0,1].map(side => p(side === 0 ? 0x658e62 : 0x48907a, side * .23, .61, 0, .18, 1.2, .095,
+        'sphere', side * .47, 0, -.32 * side)),
+    ];
     case 'hydrant': return [form('pole', .48, .58, .48, a), p(a, 0, .61, 0, .55, .2, .55, 'sphere'),
       ...[-1,1].map(side => p(ivory, 0, .39, side * .26, .2, .13, .2, 'wheel'))];
     case 'bike': return [

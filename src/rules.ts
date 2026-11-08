@@ -1,5 +1,5 @@
 export const duration = 120;
-export const thresholds = [0, 45, 140, 345, 690, 1200];
+export const thresholds = [0, 120, 350, 850, 1700, 3000];
 export const radii = [1.28, 2.05, 3.28, 5.1, 7.15, 10.2];
 export type Mode = 'timed' | 'endless';
 
@@ -11,9 +11,9 @@ export function stage(score: number) {
 export function targetRadius(score: number) {
   const index = stage(score) - 1;
   const next = thresholds[index + 1];
-  if (next === undefined) return radii[index] + 6 * (1 - Math.exp(-(score - thresholds[index]) / 3000));
+  if (next === undefined) return radii[index] + 6 * (1 - Math.exp(-(score - thresholds[index]) / 6500));
   const progress = (score - thresholds[index]) / (next - thresholds[index]);
-  return radii[index] + (radii[index + 1] - radii[index]) * progress * .32;
+  return radii[index] + (radii[index + 1] - radii[index]) * progress ** 1.65;
 }
 
 export function fits(radius: number, footprint: number, distanceSquared: number) {
@@ -61,3 +61,4 @@ export class Grid<T extends { x: number; z: number }> {
     }
   }
 }
+

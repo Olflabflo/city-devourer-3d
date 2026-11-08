@@ -24,11 +24,11 @@ const entries = [
   ["toys", "Spielzeugzimmer", "Miniatur", "Zuggleise und Gassen aus bunten Bausteinen", 0x748fa3, 0xc7b581, 0xdedbc5, 0xfa7355, "tracks", "brick toy train brick tower brick", "Klötzchen|Spielfiguren|Waggons|Bausteine|Türme|Bausteinburg"],
   ["desk", "Schreibtisch", "Miniatur", "Papierflächen, Kabel und eine Tastatur", 0x725b50, 0xd8d4bc, 0xc6c4b5, 0x7796d0, "paper", "clip screw pencil cup paper keyboard", "Klammern|Radiergummis|Stifte|Becher|Notizblöcke|Tastatur"],
   ["moon", "Mondbasis", "Science-Fiction", "Landespuren zwischen Kratern und Habitaten", 0x454952, 0x737d89, 0x6e7484, 0xe7af64, "craters", "stone beacon rover solar dome station", "Mondgestein|Leuchtbaken|Rover|Solarfelder|Habitate|Mondbasis"],
-  ["mars", "Marskolonie", "Science-Fiction", "Ein roter Canyon führt zur Koloniekuppel", 0x9e503d, 0xcf8064, 0xe0a28a, 0x7dd4db, "canyon", "stone beacon solar rover module dome", "Gestein|Baken|Paneele|Rover|Labore|Koloniekuppel"],
+  ["mars", "Marskolonie", "Science-Fiction", "Ein roter Canyon führt zur Koloniekuppel", 0x9e503d, 0xcf8064, 0xe0a28a, 0x7dd4db, "canyon", "stone beacon solar module station dome", "Gestein|Baken|Paneele|Labore|Funkstationen|Koloniekuppel"],
   ["ring", "Ringraumstation", "Science-Fiction", "Ringsegmente und Speichen am Stationskern", 0x28334f, 0x536e89, 0x53687e, 0x76e7db, "ring", "beacon solar drone module module station", "Baken|Paneele|Drohnen|Andockmodule|Ringsektionen|Stationskern"],
   ["neon", "Neon-Megacity", "Science-Fiction", "Leuchtschneisen mit Reklamen und Hochhäusern", 0x292440, 0x443a66, 0x5d477e, 0x58e8f1, "neon", "beacon sign drone sign tower neon", "Leuchtmodule|Schilder|Drohnen|Reklamen|Türme|Neon-Hochhaus"],
   ["alien", "Alien-Kristallwald", "Science-Fiction", "Lichtungen zwischen facettierten Kristallen", 0x4c335b, 0x755081, 0x906a98, 0x6ce5cf, "groves", "seed crystal crystal flower crystal spires", "Sporen|Splitter|Kristalle|Sporenblüten|Kristallgruppen|Kristalltürme"],
-  ["orbit", "Orbitaler Schrottplatz", "Science-Fiction", "Trümmerbahnen um eine Andockschleuse", 0x363f52, 0x5a6572, 0x6b7995, 0xf2b764, "debris", "screw panel solar drone wreck airlock", "Schrottstücke|Platten|Satelliten|Drohnen|Schiffsrümpfe|Schleuse"],
+  ["orbit", "Orbitaler Schrottplatz", "Science-Fiction", "Trümmerbahnen um eine Andockschleuse", 0x363f52, 0x5a6572, 0x6b7995, 0xf2b764, "debris", "screw panel solar drone shuttle airlock", "Schrottstücke|Platten|Satelliten|Drohnen|Shuttle-Rümpfe|Schleuse"],
 ] as const;
 
 export const landscapes = entries.map(([id, name, group, description, ground, detail, sky, accent, layout, pieces, goals]) => ({
@@ -42,3 +42,5 @@ export const harbor = landscapes[0];
 export function landscapeById(id: string): Landscape {
   return landscapes.find(world => world.id === id) ?? harbor;
 }
+
+

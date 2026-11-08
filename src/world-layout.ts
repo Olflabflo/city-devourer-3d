@@ -49,42 +49,69 @@ const radii = [.34, .83, 1.62, 2.92, 4.58, 7.25];
 const points = [6, 14, 28, 52, 90, 220];
 const accentWhite = 0xf3ebd7;
 const riverBlue = 0x3b8398;
-const movingModels: Record<Landscape['group'], readonly string[]> = {
-  Erde: ['walker', 'rover', 'woman'],
-  Wasser: ['sail', 'cargo', 'woman'],
-  Geschichte: ['roman', 'handcart', 'roman-woman', 'carriage'],
-  Miniatur: ['ant', 'beetle'],
-  'Science-Fiction': ['robot', 'drone', 'shuttle', 'robot'],
-};
-const localTraffic: Partial<Record<Landscape['id'], readonly string[]>> = {
-  amazon: ['walker', 'longboat'], arctic: ['walker', 'rover'],
-  pirate: ['longboat', 'galleon'], reef: ['fish', 'fish'], venice: ['walker', 'longboat'],
-  icebreaker: ['cargo', 'breaker'], viking: ['walker', 'longboat', 'handcart', 'woman'], toys: ['toy', 'train'],
-  picnic: ['ant', 'beetle'], desk: ['ant', 'beetle'], bench: ['beetle', 'toy'],
-  cargo: ['cargo', 'walker', 'sail', 'woman'],
-  castle: ['walker', 'carriage', 'woman', 'handcart'],
-  bazaar: ['walker', 'handcart', 'woman', 'carriage'],
-  egypt: ['roman-woman', 'sail', 'handcart', 'walker'],
+const trafficByWorld: Record<Exclude<Landscape['id'], 'harbor'>, readonly string[]> = {
+  alps:['walker','woman'], sahara:['walker','woman','carriage'], amazon:['walker','longboat','woman'],
+  arctic:['walker','rover','breaker'], volcano:['walker','woman'],
+  sail:['sail','galleon'], cargo:['cargo','walker','woman'], pirate:['longboat','galleon'],
+  reef:['fish'], venice:['walker','longboat','woman'], icebreaker:['cargo','breaker'],
+  egypt:['woman','longboat','handcart','walker'], rome:['roman','handcart','roman-woman','carriage'],
+  greece:['woman','handcart','walker','carriage'], castle:['walker','carriage','woman','handcart'],
+  viking:['walker','longboat','handcart','woman'], bazaar:['walker','handcart','woman','carriage'],
+  ants:['ant','beetle'], garden:['beetle','ant'], picnic:['ant','beetle'], bench:['beetle'],
+  toys:['toy','train'], desk:['ant','beetle'],
+  moon:['robot','rover','shuttle','drone'], mars:['robot','drone','shuttle','robot'],
+  ring:['robot','drone','shuttle'], neon:['walker','woman','drone','robot'],
+  alien:['robot','drone','shuttle'], orbit:['robot','drone','shuttle'],
 };
 
 export const landActors = new Set(['walker','woman','roman','roman-woman','handcart','carriage','cart','rover','train']);
 export const waterActors = new Set(['sail','galleon','longboat','cargo','breaker','fish','wreck','buoy','coral','shell','lily','iceberg']);
-const extras: Record<Landscape['group'], readonly string[][]> = {
-  Erde: [['stone','sack','seed','planter'], ['fir','barrel','planter'], ['awning','cabin']],
-  Wasser: [['buoy','rope','shell','bollard','crate'], ['barrel','buoy','crate'], ['sail','coral','cargo']],
-  Geschichte: [['urn','sack','jar','rope'], ['stall','column','barrel','planter'], ['handcart','arch','awning']],
-  Miniatur: [['seed','fruit','drop','clip'], ['leaf','fruit','toy'], ['flower','ant','beetle']],
-  'Science-Fiction': [['battery','signal','beacon','crate'], ['supply','solar','panel'], ['rover','drone','module']],
-};
-const localExtras: Partial<Record<Landscape['id'], readonly string[][]>> = {
-  ants: [['seed','stone','drop'],['leaf','ant','fruit'],['ant','beetle','root']],
-  garden: [['drop','seed','stone'],['leaf','fruit','flower'],['flower','ant','beetle']],
-  picnic: [['seed','fruit','cup'],['leaf','fruit','cup'],['basket','flower','beetle']],
-  toys: [['brick','toy','pencil'],['brick','toy','panel'],['toy','train','basket']],
-  desk: [['clip','screw','pencil'],['paper','pencil','cup'],['keyboard','panel','basket']],
-  bench: [['nut','screw','clip'],['toolbox','panel','wrench'],['vise','toolbox','wrench']],
+
+const extras: Record<Exclude<Landscape['id'], 'harbor'>, readonly string[][]> = {
+  alps:[['stone','seed','sack'],['fir','barrel','planter'],['fir','cabin']],
+  sahara:[['jar','stone','sack'],['palm','jar','barrel'],['dune','cabin']],
+  amazon:[['seed','stone','drop'],['leaf','fruit','palm'],['palm','banyan','stilt']],
+  arctic:[['ice','stone','crate'],['ice','supply','barrel'],['cabin','beacon','supply']],
+  volcano:[['stone','crystal','seed'],['crystal','stone','fir'],['ridge','peak','cabin']],
+  sail:[['buoy','rope','crate'],['barrel','buoy','crate'],['sail','galleon']],
+  cargo:[['crate','rope','bollard','buoy'],['barrel','supply','buoy'],['cargo','crane']],
+  pirate:[['barrel','rope','shell','crate'],['chest','barrel','crate'],['sail','longboat','galleon']],
+  reef:[['shell','coral'],['coral','shell'],['coral','wreck']],
+  venice:[['jar','rope','bollard'],['urn','barrel','planter'],['longboat','arch']],
+  icebreaker:[['ice','buoy','rope'],['ice','barrel','crate'],['iceberg','breaker']],
+  egypt:[['jar','sack','stone'],['palm','urn','barrel'],['obelisk','column','stall']],
+  rome:[['urn','sack','jar','rope'],['stall','column','barrel','planter'],['handcart','arch','awning']],
+  greece:[['stone','urn','jar'],['column','planter','barrel'],['arch','statue','stall']],
+  castle:[['barrel','sack','rope'],['chest','planter','barrel'],['handcart','awning','cabin']],
+  viking:[['barrel','rope','stone'],['shield','sack','chest'],['longhouse','longboat','handcart']],
+  bazaar:[['jar','sack','rope'],['cloth','urn','planter'],['stall','awning','handcart']],
+  ants:[['seed','stone','drop'],['leaf','ant','fruit'],['ant','beetle','root']],
+  garden:[['drop','seed','stone'],['leaf','fruit','flower'],['flower','ant','beetle']],
+  picnic:[['seed','fruit','cup'],['leaf','fruit','cup'],['basket','flower','beetle']],
+  bench:[['nut','screw','clip'],['toolbox','panel','wrench'],['vise','toolbox','wrench']],
+  toys:[['brick','toy','pencil'],['brick','toy','panel'],['toy','train','basket']],
+  desk:[['clip','screw','pencil'],['paper','pencil','cup'],['keyboard','panel','basket']],
+  moon:[['stone','battery','signal'],['beacon','supply','solar'],['rover','drone','module']],
+  mars:[['stone','battery','signal'],['beacon','supply','solar'],['solar','drone','module']],
+  ring:[['battery','signal','beacon'],['supply','solar','panel'],['drone','module','shuttle']],
+  neon:[['signal','beacon','crate'],['sign','panel','supply'],['drone','sign','tower']],
+  alien:[['seed','crystal','drop'],['crystal','flower','leaf'],['crystal','flower','drone']],
+  orbit:[['screw','battery','panel'],['panel','supply','solar'],['solar','drone','shuttle']],
 };
 
+const wetExtras: Partial<Record<Landscape['id'], readonly [readonly string[], readonly string[]]>> = {
+  sahara:[['lily'],['lily']],
+  amazon:[['lily','leaf','crate'],['longboat']],
+  arctic:[['ice','buoy'],['iceberg','breaker']],
+  sail:[['buoy','rope','crate','barrel'],['sail','galleon','wreck']],
+  cargo:[['buoy','rope','crate'],['cargo']],
+  pirate:[['barrel','rope','chest','crate'],['longboat','sail','galleon','wreck']],
+  reef:[['shell','starfish','urchin'],['coral','wreck','kelp']],
+  venice:[['buoy','rope','crate'],['longboat']],
+  icebreaker:[['ice','buoy'],['iceberg','breaker','cargo']],
+  egypt:[['lily','crate'],['longboat']],
+  viking:[['barrel','rope','crate'],['longboat']],
+};
 function covers(p: Piece, x: number, z: number, margin: number) {
   const dx = x - p.x, dz = z - p.z;
   const cos = Math.cos(p.yaw), sin = Math.sin(p.yaw);
@@ -118,7 +145,8 @@ function sample(trail: readonly Point[], fraction: number) {
 }
 
 export function planWorld(world: Landscape): WorldPlan {
-  if (world.layout === 'grid') throw new Error('The harbor has its own generator');
+  const {id} = world;
+  if (id === 'harbor' || world.layout === 'grid') throw new Error('The harbor has its own generator');
   const layout = layouts[world.layout];
   let state = [...world.id].reduce((hash, char) => (Math.imul(hash, 31) + char.charCodeAt(0)) >>> 0, 2166136261);
   const random = () => {
@@ -204,19 +232,19 @@ export function planWorld(world: Landscape): WorldPlan {
   const alternatives = (tier: number, x: number, z: number) => {
     const wet = !onLand(x,z);
     const primary = world.models[tier - 1];
-    const options = [primary, ...((localExtras[world.id] ?? extras[world.group])[tier - 1] ?? [])];
+    const options = [primary, ...(extras[id][tier - 1] ?? [])];
     if (wet) {
-      const aquatic = options.filter(name => waterActors.has(name));
-      if (tier <= 2) aquatic.push('buoy','rope','shell','crate');
-      if (tier >= 3) {
-        if (world.id === 'arctic' || world.id === 'icebreaker') aquatic.push('iceberg','breaker');
-        else if (world.layout === 'reef') aquatic.push('coral','wreck');
-        else aquatic.push('sail','wreck');
-      }
-      return aquatic;
+      const alternatives = wetExtras[world.id];
+      if (!alternatives) throw new Error(`Missing water palette for ${world.name}`);
+      const palette = alternatives[tier <= 2 ? 0 : 1];
+      return palette.includes(primary) ? [primary, ...palette] : palette;
     }
     const dry = options.filter(name => !waterActors.has(name));
-    return dry.length ? dry : [tier > 3 ? 'awning' : 'crate'];
+    if (dry.length) return dry;
+    const local = world.models.slice(0,tier).reverse().find(name => !waterActors.has(name))
+      ?? world.models.find(name => !waterActors.has(name));
+    if (!local) throw new Error(`Missing land palette for ${world.name}`);
+    return [local];
   };
   const add = (x: number, z: number, tier: number, yaw = 0, name?: string, patrol?: Patrol) => {
     const radius = radii[tier - 1];
@@ -270,12 +298,12 @@ export function planWorld(world: Landscape): WorldPlan {
       const distance = layout.width / 2 - 1.4;
       for (const side of [-1,1]) {
         const px = x + dz * distance * side, pz = z - dx * distance * side;
-        if (onLand(px,pz)) add(px,pz,i % 4 === 0 ? 2 : 1,Math.atan2(-dz,dx),i % 4 === 0 ? 'supply' : 'bollard');
+        if (onLand(px,pz)) add(px,pz,i % 4 === 0 ? 2 : 1,Math.atan2(-dz,dx),i % 4 === 0 ? (world.id === 'venice' ? 'barrel' : 'supply') : 'bollard');
       }
     }
   }
   for (let i = 1; i <= 8; i++) add(-i * 1.55, startZ + i * .815, 1, i * .38);
-  const actors = localTraffic[world.id] ?? movingModels[world.group];
+  const actors = trafficByWorld[id];
   const addPatrol = (x: number, z: number, i: number) => {
     const wet = !onLand(x,z);
     const eligible = actors.filter(name => wet ? !landActors.has(name) : !waterActors.has(name));
@@ -360,5 +388,6 @@ export function planWorld(world: Landscape): WorldPlan {
     isLand: (x,z) => onLand(x / mapScale,z / mapScale),
   };
 }
+
 
 

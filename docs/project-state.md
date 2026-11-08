@@ -69,3 +69,20 @@ City Devourer 3D ist ein statisch ausgeliefertes WebGL-Arcadespiel für Desktop 
 - Gebäude fallen vor dem Einsammeln sichtbar in sich zusammen. Der Rundenneustart setzt die Bauteile zurück.
 - Zehn automatisierte Tests prüfen unter anderem Dichte, Wahrzeichen, historische Fahrzeugtypen, Routen und den Gebäude-Reset. Bereitstellung über [PR #1](https://github.com/Olflabflo/city-devourer-3d/pull/1) im [Netlify Deploy Preview](https://deploy-preview-1--city-devourer-3d.netlify.app/).
 
+## WP-11 · Themenprüfung und Wachstum
+
+Jede Karte hat einen eigenen Gegenstands- und Verkehrspool. Ersatzobjekte am Ufer stammen ebenfalls aus der Karte. So bleiben etwa Containerfrachter im Containerhafen und in der Eisbrecher-Passage, römische Figuren im Forum und Roboter in der Marskolonie. Die bestehenden Routen-, Dichte- und Resetregeln gelten für die neuen Pools.
+
+Die Wachstumsstufen beginnen bei 0, 120, 350, 850, 1.700 und 3.000 Punkten. Zwischen den Stufen wächst der Radius kontinuierlich mit anfangs flacherer Kurve. Nach Stufe 6 braucht weiterer Zuwachs ebenfalls mehr Punkte.
+
+| Prüffall | RED | GREEN und Wiederholung |
+| --- | --- | --- |
+| WP11-T01 · Piratenbucht | Exit 1. Containerfrachter und moderne Poller im erzeugten Inventar. | Segelschiffe, Schatztruhen und zeitgemäße Ladung geprüft. Zwei erfolgreiche Läufe. |
+| WP11-T02 · Mars | Exit 1. Das straßenfahrzeugähnliche Rover-Modell erschien im Inventar. | Kolonieausrüstung und fahrende Roboter geprüft. Zwei erfolgreiche Läufe. |
+| WP11-T03 · Kartenübergreifende Themenprüfung | Exit 1. Mehrere Modelle erschienen in unpassenden Welten, darunter Korallen in Venedig und Römer in Griechenland. | Geprüfte Modellgruppen bleiben in ihren vorgesehenen Welten. Zwei erfolgreiche Läufe. |
+| WP11-T04 · Wachstum | Exit 1. Nach 19 typischen Kleinteilen war Stufe 2 bereits erreicht. | Erste Schwelle bei 20 typischen Kleinteilen, weitere Schwellen und kontinuierlicher Radius geprüft. Zwei erfolgreiche Läufe. |
+| WP11-T05 · Polare Landobjekte | Exit 1. Ein Ladenmodell diente als Ersatz für ein Wasserobjekt. | Expedition und Unterkünfte an Land geprüft. Zwei erfolgreiche Läufe. |
+| WP11-T06 · Wikingerfjord | Bestandsprüfung bereits grün. | Langhäuser an Land und Langboote auf dem Wasser als Regression erfasst. |
+
+Befehle: gezielt `node --test --test-name-pattern ... src/worlds.test.ts` bzw. `src/rules.test.ts`, vollständig `npm test` und `npm run build`. Bereitstellung im [Netlify Deploy Preview](https://deploy-preview-1--city-devourer-3d.netlify.app/) zu [PR #1](https://github.com/Olflabflo/city-devourer-3d/pull/1).
+

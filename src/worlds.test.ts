@@ -7,6 +7,61 @@ import { InstancedMesh, Matrix4, Scene } from 'three';
 import { landActors, planWorld, spawn, waterActors } from './world-layout.ts';
 import { landscapeById } from './landscapes.ts';
 
+test('Pirate Bay contains sailing ships and period cargo throughout the generated map', () => {
+  const { objects } = planWorld(landscapeById('pirate'));
+  const modern = objects.filter(prop => ['cargo','breaker','crane','bollard','supply','rover'].includes(prop.name));
+  assert.deepEqual([...new Set(modern.map(prop => prop.name))], []);
+  assert.ok(objects.some(prop => prop.name === 'galleon' && prop.patrol));
+  assert.ok(objects.some(prop => prop.name === 'chest'));
+});
+
+test('Mars uses colony equipment and robot traffic instead of road vehicles', () => {
+  const { objects } = planWorld(landscapeById('mars'));
+  const vehicles = objects.filter(prop => ['rover','train','car','truck','bike','cart'].includes(prop.name));
+  assert.deepEqual([...new Set(vehicles.map(prop => prop.name))], []);
+  assert.ok(objects.some(prop => prop.name === 'robot' && prop.patrol));
+  assert.ok(objects.some(prop => prop.name === 'module'));
+});
+
+test('models tied to a setting do not leak into incompatible worlds', () => {
+  const allowedWorlds = new Map([
+    ['cargo', ['cargo','icebreaker']],
+    ['breaker', ['arctic','icebreaker']],
+    ['coral', ['reef']],
+    ['wreck', ['pirate','reef','sail']],
+    ['roman', ['rome']],
+    ['roman-woman', ['rome']],
+    ['rover', ['moon','arctic']],
+    ['longboat', ['viking','pirate','amazon','venice','egypt']],
+  ]);
+  const misplaced = [];
+  for (const world of landscapes.filter(map => map !== harbor)) {
+    const names = new Set(planWorld(world).objects.map(prop => prop.name));
+    for (const [model, maps] of allowedWorlds) {
+      if (names.has(model) && !maps.includes(world.id)) misplaced.push(`${world.id}:${model}`);
+    }
+  }
+  assert.deepEqual(misplaced, []);
+});
+
+test('the Viking waterfront uses longhouses on land and longboats on water', () => {
+  const plan = planWorld(landscapeById('viking'));
+  const land = plan.objects.filter(prop => prop.tier >= 4 && plan.isLand(prop.x, prop.z));
+  const water = plan.objects.filter(prop => prop.tier >= 3 && !plan.isLand(prop.x, prop.z));
+  assert.ok(land.some(prop => prop.name === 'longhouse'));
+  assert.ok(land.every(prop => prop.name === 'longhouse'));
+  assert.ok(water.length > 0);
+  assert.ok(water.every(prop => prop.name === 'longboat'));
+});
+
+test('polar land sites use expedition equipment and shelter', () => {
+  const allowed = new Set(['ice','stone','cabin','station','crate','barrel','supply','beacon','rover','walker']);
+  const plan = planWorld(landscapeById('arctic'));
+  const land = plan.objects.filter(prop => plan.isLand(prop.x, prop.z));
+  assert.ok(land.some(prop => prop.name === 'station'));
+  assert.deepEqual([...new Set(land.filter(prop => !allowed.has(prop.name)).map(prop => prop.name))], []);
+});
+
 test('the landscapes generate distinct layouts with attainable growth chains', () => {
   const layouts = new Set<string>();
   for (const world of landscapes) {
