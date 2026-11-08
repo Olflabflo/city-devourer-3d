@@ -2,7 +2,7 @@
 
 Stand: 8. November 2026 · Lieferung S1 · Ausgangsrevision `1354abd9f31b0ec86b8752f097981ae26453c997`
 
-City Devourer 3D ist ein statisch ausgeliefertes WebGL-Arcadespiel für Desktop und Smartphone. Die Ausgangsversion mit dem Hafenviertel ist auf [Netlify](https://city-devourer-3d.netlify.app/) öffentlich verfügbar. Quellcode und Produktionsbranch liegen im [Spielrepository](https://github.com/Olflabflo/city-devourer-3d). Bei der Übernahme waren dort keine offenen Issues oder Pull Requests sichtbar.
+City Devourer 3D ist ein statisch ausgeliefertes WebGL-Arcadespiel für Desktop und Smartphone. Die Version mit 30 Landschaften ist auf [Netlify](https://city-devourer-3d.netlify.app/) öffentlich spielbar. Quellcode und Produktionsbranch liegen im [Spielrepository](https://github.com/Olflabflo/city-devourer-3d). Bei der Übernahme waren dort keine offenen Issues oder Pull Requests sichtbar.
 
 - [Roadmap und Arbeitspakete](roadmap.md)
 - [Entscheidungen](decisions.md)
@@ -11,21 +11,20 @@ City Devourer 3D ist ein statisch ausgeliefertes WebGL-Arcadespiel für Desktop 
 - [Umsetzungs- und Prüfprotokoll](sdd/30-landschaften/03-umsetzung.md)
 
 ```text
-✓ Ausgangslage  →  ✓ Analyse  →  ✓ Spezifikation  →  ✓ Umsetzung  →  ● Veröffentlichung
+✓ Ausgangslage  →  ✓ Analyse  →  ✓ Spezifikation  →  ✓ Umsetzung  →  ✓ Veröffentlichung
 ```
 
-**Stand:** 4 von 5 Meilensteinen erreicht. **Aktuell:** Veröffentlichung M5. Die 30 Karten sind im Entwicklungsstand spielbar. Der Produktionsnachweis wird für die ausgelieferte Revision geführt.
+**Stand:** 5 von 5 Meilensteinen erreicht. S1 ist veröffentlicht. [Commit 20ef8d7](https://github.com/Olflabflo/city-devourer-3d/commit/20ef8d7a769d14949254c67eec99ff20fbd520f3) · [Netlify-Deploy](https://app.netlify.com/projects/city-devourer-3d/deploys/6af0721b427fe11c0c25500a).
 
 ## Letzte Nachweise
 
 - `npm test`: sieben erfolgreiche Tests zu Grundregeln, Layouts, Wachstum, Ressourcenfreigabe und Flusskarten.
 - `npm run build`: TypeScript und Vite erfolgreich. Vite meldet einen JS-Chunk über 500 kB.
 - Chromium: 30 Karten in einer Sitzung geladen und gestartet. Kartenwechsel, Wachstum, Pause, Timer, Neustart, Rekorde und emulierte Touch-Steuerung geprüft. Eine komplette Endlosrunde im Ameisenbau erfasst 100 von 100 Objekten.
-- Offener Nachweis für den Release: Netlify-Commit abgleichen und neue Karten öffentlich ohne Anmeldung starten.
+- Produktion: Netlify hat den GitHub-Commit für S1 veröffentlicht. Der öffentliche Browsercheck zeigte 30 Karten und startete den Ameisenbau ohne Anmeldung.
 
 ## Nächster Meilenstein und Arbeitspaket
 
-M5 · Veröffentlichung. WP-04 prüft den Produktionsbuild nach dem Push. Erfolgreich ist das Paket, wenn Netlify den GitHub-Commit ausliefert und die öffentliche URL ohne Anmeldung eine neue Karte startet. Zuständig: Codex. Abhängigkeit: verbundener Netlify-Build.
+**M6 · Geräteabnahme (vorgeschlagen).** Die Desktop- und Mobilprüfung lief in Chromium. Die tatsächliche Touch-Bedienung und Darstellung auf einem Android-Gerät bleiben offen.
 
-Nach der Veröffentlichung bietet sich als nächster Prüfschritt eine Geräteabnahme an. Eine reale Android-Testrunde ist offen, weil die bisherige Touch-Prüfung in der Emulation lief.
-
+**WP-05 · Android-Spielrunde.** Auf einem Android-Smartphone mit Chrome die öffentliche URL öffnen. Im Hochformat den Ameisenbau auswählen, im Zeitmodus per Joystick Stufe 2 erreichen, pausieren und fortsetzen. Nach Ablauf der Runde prüfen, dass der Rekord einen Reload übersteht. Erfolg heißt, dass die Karte lädt, der Joystick ohne Seitenscrollen reagiert und Timer, Pause und Rekord wie beschrieben funktionieren. Gerät, Browser-Version und Auffälligkeiten im Prüfprotokoll festhalten. Voraussetzung ist ein verfügbares Android-Gerät.
