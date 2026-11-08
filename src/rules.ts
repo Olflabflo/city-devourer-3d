@@ -16,9 +16,8 @@ export function targetRadius(score: number) {
   return radii[index] + (radii[index + 1] - radii[index]) * progress * .32;
 }
 
-export function fits(level: number, tier: number, radius: number, footprint: number, distanceSquared: number) {
-  const clearance = radius - footprint;
-  return level >= tier && clearance > 0 && distanceSquared <= clearance ** 2;
+export function fits(radius: number, footprint: number, distanceSquared: number) {
+  return footprint <= radius && distanceSquared <= (radius * .94) ** 2;
 }
 
 export function timeLeft(mode: Mode, elapsed: number) {

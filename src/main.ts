@@ -117,7 +117,7 @@ function init(view: View) {
     id('level').textContent = `STUFE ${level}`;
     id('size').textContent = `Ø ${(radius * 2).toFixed(1).replace('.', ',')} m`;
     id<HTMLProgressElement>('progress').value = next === undefined ? 1 : (score - start) / (next - start);
-    id('target').textContent = next === undefined ? `OBJEKTE: ${swallowed} / ${city.objects.length}` : `ALS NÄCHSTES · ${map.goals[level]}`;
+    id('target').textContent = next === undefined ? `OBJEKTE: ${swallowed} / ${city.objects.length}` : `NÄCHSTE GRÖSSE · ${map.goals[level]}`;
     id('score').textContent = format.format(score);
     const seconds = Math.ceil(timeLeft(mode, elapsed));
     id('clock-label').textContent = mode === 'timed' ? 'ZEIT' : 'MODUS';
@@ -128,16 +128,16 @@ function init(view: View) {
   function simulate(dt: number) {
     city.drive(dt, unavailable);
     const axis = input.read();
-    const speed = 10.5 + radius * .58;
+    const speed = 8.2 + Math.min(radius, 8) * .32;
     // Match the ground projection of the camera's right and down directions.
     desired.set(.885 * axis.x + .465 * axis.y, -.465 * axis.x + .885 * axis.y).multiplyScalar(speed);
-    velocity.lerp(desired, 1 - Math.exp(-13 * dt));
+    velocity.lerp(desired, 1 - Math.exp(-(axis.lengthSq() ? 7.5 : 12) * dt));
     player.addScaledVector(velocity, dt).clampScalar(-extent, extent);
     radius = MathUtils.lerp(radius, targetRadius(score), 1 - Math.exp(-4.8 * dt));
     const level = stage(score);
     for (const prop of city.grid.near(player.x, player.y, radius)) {
       const distance = (prop.x - player.x) ** 2 + (prop.z - player.y) ** 2;
-      if (!fits(level, prop.tier, radius, prop.footprint, distance)) continue;
+      if (!fits(radius, prop.footprint, distance)) continue;
       city.grid.remove(prop);
       unavailable.add(prop);
       falling.push({ prop, x: prop.x, z: prop.z, age: 0, duration: .51 + prop.tier * .09 });
@@ -270,4 +270,5 @@ try {
   id('landscape-picker').hidden = true;
   play.hidden = true;
 }
+
 

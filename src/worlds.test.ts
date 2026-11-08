@@ -4,7 +4,7 @@ import { City, extent } from './city.ts';
 import { harbor, landscapes } from './landscapes.ts';
 import { fits, radii, thresholds } from './rules.ts';
 import { InstancedMesh, Scene } from 'three';
-import { planWorld } from './world-layout.ts';
+import { planWorld, spawn } from './world-layout.ts';
 import { landscapeById } from './landscapes.ts';
 
 test('the landscapes generate distinct layouts with attainable growth chains', () => {
@@ -17,7 +17,7 @@ test('the landscapes generate distinct layouts with attainable growth chains', (
       assert.ok(!layouts.has(layout), `${world.name} must have a distinct layout`);
       layouts.add(layout);
       for (const item of objects) {
-        assert.ok(fits(item.tier, item.tier, radii[item.tier - 1], item.footprint, 0), world.name);
+        assert.ok(fits(radii[item.tier - 1], item.footprint, 0), world.name);
         assert.ok(Math.abs(item.x) <= extent && Math.abs(item.z) <= extent, world.name);
       }
       for (let tier = 1; tier < 6; tier++) {
@@ -26,7 +26,7 @@ test('the landscapes generate distinct layouts with attainable growth chains', (
       }
       if (world !== harbor) {
         assert.ok(objects.some(item => item.tier === 6), world.name);
-        assert.ok(objects.filter(item => item.tier === 1 && Math.hypot(item.x, item.z - 11.25) < 16)
+        assert.ok(objects.filter(item => item.tier === 1 && Math.hypot(item.x, item.z - spawn[1]) < 16)
           .reduce((sum,item) => sum + item.points, 0) >= thresholds[1], world.name);
       }
     } finally {
@@ -52,7 +52,7 @@ test('disposing a landscape releases its scene objects and instance data', () =>
 test('river maps have a continuous water channel distinct from the banks', () => {
   for (const id of ['amazon', 'egypt']) {
     const plan = planWorld(landscapeById(id));
-    const channel = plan.scenery.filter(p => p.color === 0x3b8398 && p.w >= 8 && p.d > 15);
+    const channel = plan.scenery.filter(p => p.color === 0x3b8398 && p.w >= 8 && p.d > 12);
     assert.ok(channel.length >= 4, `${id} needs a continuous blue river channel`);
     assert.ok(new Set(channel.map(p => p.yaw)).size > 2, `${id} channel bends along the terrain`);
   }
@@ -62,10 +62,10 @@ test('each map has nearby collectibles and active traffic that resets with the r
   for (const world of landscapes) {
     const city = new City(false, world);
     try {
-      assert.ok(city.objects.length >= 180, `${world.name}: collectible density`);
-      const nearSpawn = city.objects.filter(item => Math.hypot(item.x, item.z - 11.25) <= 24);
+      assert.ok(city.objects.length >= 240, `${world.name}: collectible density`);
+      const nearSpawn = city.objects.filter(item => Math.hypot(item.x, item.z - spawn[1]) <= 24);
       assert.ok(nearSpawn.length >= 25, `${world.name}: enough to find near the start`);
-      const moving = city.traffic.filter(item => Math.hypot(item.x, item.z - 11.25) <= 30);
+      const moving = city.traffic.filter(item => Math.hypot(item.x, item.z - spawn[1]) <= 30);
       assert.ok(moving.length >= 4, `${world.name}: movement visible near the start`);
       const origin = moving.map(({ x,z }) => [x,z]);
       city.drive(.5, new Set([moving[0]]));
@@ -78,3 +78,4 @@ test('each map has nearby collectibles and active traffic that resets with the r
     }
   }
 });
+

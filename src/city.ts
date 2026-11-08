@@ -1,11 +1,12 @@
 import * as T from 'three';
 import { Grid } from './rules.ts';
 import { harbor, type Landscape } from './landscapes.ts';
-import { planWorld, type Patrol } from './world-layout.ts';
+import { mapScale, planWorld, type Patrol } from './world-layout.ts';
 import type { Piece } from './world-models.ts';
 
 export const block = 30;
-export const extent = 105;
+const sectorSize = block * mapScale;
+export const extent = sectorSize * 7 / 2;
 const shapes = {
   box: new T.BoxGeometry(),
   crown: new T.IcosahedronGeometry(1, 0), pole: new T.CylinderGeometry(.5, .5, 1, 7),
@@ -101,6 +102,8 @@ function building(w: number, h: number, d: number, color: number, tower: boolean
     for (const side of [-1, 1]) {
       parts.push(part(tint, 0, y, side * (d / 2 + .02), w * .74, .53, .06));
       parts.push(part(tint, side * (w / 2 + .02), y, 0, .06, .53, d * .72));
+      parts.push(part(0xd6e3dc, 0, y - .32, side * (d / 2 + .035), w * .8, .065, .085));
+      parts.push(part(color, side * (w / 2 + .052), y, d * .14, .065, .55, .1));
       if (!tower) parts.push(part(color, 0, y, side * (d / 2 + .055), .24, .56, .065));
     }
   }
@@ -161,6 +164,17 @@ export class City {
     const ground = this.ground = new T.Mesh(new T.PlaneGeometry(270, 270), new T.MeshLambertMaterial({
       color: landscape.id === harbor.id ? asphalt : landscape.ground,
     }));
+    ground.material.onBeforeCompile = shader => {
+      shader.vertexShader = 'varying vec2 surface;\n' + shader.vertexShader.replace(
+        '#include <begin_vertex>', '#include <begin_vertex>\nsurface = position.xy;');
+      shader.fragmentShader = 'varying vec2 surface;\n' + shader.fragmentShader.replace(
+        '#include <color_fragment>',
+        `#include <color_fragment>
+        vec2 grainCell = floor(surface * 10.0);
+        float grain = fract(sin(dot(grainCell, vec2(12.9898, 78.233))) * 43758.5453);
+        float shade = sin(surface.x * .24 + sin(surface.y * .31)) * .025;
+        diffuseColor.rgb *= .96 + grain * .08 + shade;`);
+    };
     ground.rotation.x = -Math.PI / 2;
     ground.receiveShadow = shadows;
     this.root.add(ground);
@@ -181,7 +195,12 @@ export class City {
         const cx = ix * block, cz = iz * block;
         const lot: Prop[] = [];
         const add = (x: number, z: number, tier: number, footprint: number, points: number, parts: Part[], angle = 0, traffic?: Traffic, patrol?: Patrol) => {
-          const prop = { x: cx + x, z: cz + z, y: tier ? .035 : 0, tier, footprint, points, parts, angle, traffic, patrol };
+          const transform = new T.Matrix4().makeScale(mapScale, mapScale, mapScale);
+          for (const p of parts) p.local.premultiply(transform);
+          if (traffic) traffic = { ...traffic, center:traffic.center * mapScale, span:traffic.span * mapScale, speed:traffic.speed * mapScale };
+          if (patrol) patrol = { ...patrol, x:patrol.x * mapScale, z:patrol.z * mapScale, rx:patrol.rx * mapScale, rz:patrol.rz * mapScale };
+          const prop = { x: (cx + x) * mapScale, z: (cz + z) * mapScale, y: tier ? .035 : 0,
+            tier, footprint:footprint * mapScale, points, parts, angle, traffic, patrol };
           lot.push(prop);
           if (tier) {
             this.objects.push(prop);
@@ -246,6 +265,10 @@ export class City {
         add(-4.7, 9.25, 2, .95, 16, [part(0x40877e, 0, .56, 0, 1.58, .93, .87), part(dark, 0, 1.05, 0, 1.68, .16, .95)]);
         for (let i = 0; i < 7; i++) {
           add(-8 + i * 2.65, 10 + random() * 2, 1, .31, 5, [part(color(), 0, .2, 0, .43, .4, .43)], random() * 6);
+          add(-8 + i * 2.65, -10.1, 1, .32, 5, [
+            part(0xb27a4c, 0, .19, 0, .49, .36, .39),
+            part(0xffd992, 0, .38, 0, .19, .04, .4),
+          ]);
         }
         if (ix === 0 && iz === 0) {
           for (let i = 1; i <= 8; i++) {
@@ -271,7 +294,7 @@ export class City {
     for (const object of objects) {
       const { x, z, tier, points, radius, yaw, pieces, patrol } = object;
       const prop = { x, z, tier, points, footprint:radius, angle:yaw, y:.083, parts:sizedParts(pieces, radius), patrol };
-      const key = `${Math.floor(x / 36)},${Math.floor(z / 36)}`;
+      const key = `${Math.floor((x + extent) / sectorSize)},${Math.floor((z + extent) / sectorSize)}`;
       const chunk = chunks.get(key) ?? [];
       chunk.push(prop);
       chunks.set(key, chunk);

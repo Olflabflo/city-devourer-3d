@@ -43,3 +43,11 @@ City Devourer 3D ist ein statisch ausgeliefertes WebGL-Arcadespiel für Desktop 
 - Überarbeitung: Pro Karte mindestens 180 sammelbare Objekte, davon mindestens 25 im Umkreis von 24 Einheiten um den Startpunkt. Fußgänger im Hafenviertel sowie zur Welt passende bewegliche Personen, Karren, Schiffe, Insekten, Fische, Züge, Rover und Drohnen. Bewegliche Objekte bleiben sammelbar und kehren beim Neustart an ihre Startposition zurück.
 - Prüfung: Der neue Test scheiterte zuerst an der Objektdichte im Alpental. Nach der Änderung prüft er alle 30 Karten auf Dichte, Bewegung in Startnähe, Stillstand während des Verschluckens und Reset. Acht Logiktests und der Build sind erfolgreich.
 - Bereitstellung: [PR #1](https://github.com/Olflabflo/city-devourer-3d/pull/1) und [Netlify Deploy Preview](https://deploy-preview-1--city-devourer-3d.netlify.app/). Nächste Abnahme: Spielgefühl im Hafenviertel, Ameisenbau und einer Wasserkarte in der Vorschau vergleichen.
+
+## WP-08 · Kompaktere Karten und ruhigeres Spielgefühl
+
+- 7 × 7 Bereiche mit kürzeren Wegen. Die Kantenlänge des Spielfelds sinkt von 210 auf 168 Einheiten. Auf allen Karten gibt es mindestens 240 sammelbare Objekte.
+- Das Loch hat einen dunklen Ereignishorizont mit animierter, leuchtender Akkretionsscheibe. Bodenstruktur, Fassadendetails und wärmeres Licht geben der Szene mehr Tiefe.
+- Verschlucken richtet sich nach Grundfläche und Position. Ein passendes Objekt wird eingezogen, sobald sein Mittelpunkt den Horizont erreicht. Wachstumsstufen geben keine separate Sperre vor.
+- Sanftere Beschleunigung, geringere Höchstgeschwindigkeit und eine feinere Joystick-Kennlinie erleichtern kleine Korrekturen.
+- Abnahme im bestehenden [Deploy Preview](https://deploy-preview-1--city-devourer-3d.netlify.app/).

@@ -38,7 +38,9 @@ const layouts: Record<Exclude<Landscape['layout'], 'grid'>, Layout> = {
   debris: { width:6, trails:[[[-92,16],[-52,-5],[-21,-9],[22,5],[60,-17],[92,-11]], [[-91,-62],[-54,-52],[-5,-76],[35,-54],[87,-65]], [[-87,80],[-33,60],[15,75],[51,45],[89,57]]] },
 };
 
-export const spawn = [0, 11.25] as const;
+export const mapScale = .8;
+const startZ = 11.25;
+export const spawn = [0, startZ * mapScale] as const;
 export type Patrol = { x: number; z: number; rx: number; rz: number; speed: number; phase: number; stride?: boolean };
 type ObjectPlan = { x: number; z: number; tier: number; radius: number; points: number; yaw: number; pieces: Piece[]; patrol?: Patrol };
 type WorldPlan = { scenery: Piece[]; objects: ObjectPlan[] };
@@ -143,14 +145,18 @@ export function planWorld(world: Landscape): WorldPlan {
   const objects: ObjectPlan[] = [];
   const add = (x: number, z: number, tier: number, yaw = 0, name = world.models[tier - 1], patrol?: Patrol) => {
     const radius = radii[tier - 1];
-    if (Math.abs(x) > 99 || Math.abs(z) > 99 || objects.some(other =>
-      Math.hypot(x - other.x, z - other.z) < radius + other.radius + .7)) return false;
+    if (Math.abs(x) > 99 || Math.abs(z) > 99) return false;
+    x *= mapScale;
+    z *= mapScale;
+    if (objects.some(other => Math.hypot(x - other.x, z - other.z) < radius + other.radius + .35)) return false;
+    if (patrol) patrol = { ...patrol, x:patrol.x * mapScale, z:patrol.z * mapScale,
+      rx:patrol.rx * mapScale, rz:patrol.rz * mapScale };
     objects.push({ x, z, tier, radius, yaw, points:points[tier - 1], patrol,
       pieces:model(name, world.accent, world.detail) });
     return true;
   };
   add(-8, -17, 6, .24);
-  for (let i = 1; i <= 8; i++) add(spawn[0] - i * 1.55, spawn[1] + i * .815, 1, i * .38);
+  for (let i = 1; i <= 8; i++) add(-i * 1.55, startZ + i * .815, 1, i * .38);
   const actors = localTraffic[world.id] ?? movingModels[world.group];
   const addPatrol = (x: number, z: number, i: number) => {
     const name = actors[i % 2];
@@ -161,7 +167,7 @@ export function planWorld(world: Landscape): WorldPlan {
     return add(x + route.rx * Math.sin(phase), z + route.rz * Math.cos(phase), stride ? 2 : 3, angle, name, route);
   };
   for (const [i, [x,z]] of ([[4,4],[12,8],[17,17],[4,23],[-5,27],[-16,5],[18,-3],[-19,14]] as Point[]).entries()) addPatrol(x,z,i);
-  for (let i = 0; i < 28; i++) {
+  for (let i = 0; i < 42; i++) {
     const angle = i * 2.39996;
     const radius = 6 + (i % 7) * 2.5;
     add(2 + Math.cos(angle) * radius, 11 + Math.sin(angle) * radius, i % 4 === 0 ? 2 : 1, angle);
@@ -186,14 +192,14 @@ export function planWorld(world: Landscape): WorldPlan {
     }
   }
   // Enforce a supply of each tier even if the trails cross or run close to the boundary.
-  const minimum = [104, 37, 21, 12, 9, 4];
+  const minimum = [140, 50, 25, 13, 9, 4];
   for (let tier = 6; tier >= 1; tier--) {
     let count = objects.filter(object => object.tier === tier).length;
-    for (let attempt = 0; count < minimum[tier - 1] && attempt < 400; attempt++) {
+    for (let attempt = 0; count < minimum[tier - 1] && attempt < 800; attempt++) {
       const x = (random() * 2 - 1) * 90, z = (random() * 2 - 1) * 90;
-      if (Math.hypot(x - spawn[0], z - spawn[1]) > 11 && add(x, z, tier, random() * 6.28)) count++;
+      if (Math.hypot(x, z - startZ) > 11 && add(x, z, tier, random() * 6.28)) count++;
     }
     if (count < minimum[tier - 1]) throw new Error(`Insufficient space in ${world.name} for tier ${tier}`);
   }
-  return { scenery, objects };
+  return { scenery: scenery.map(p => ({ ...p, x:p.x * mapScale, z:p.z * mapScale, w:p.w * mapScale, d:p.d * mapScale })), objects };
 }
